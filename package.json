@@ -1,0 +1,17 @@
+{
+  "name": "edward-skill-collection",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Edward's private agent skill collection for Claude Code, Codex, and pi.",
+  "keywords": [
+    "pi-package",
+    "agent-skills",
+    "claude-code",
+    "codex"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  }
+}
