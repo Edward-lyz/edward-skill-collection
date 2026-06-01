@@ -63,7 +63,7 @@ pi auto-discovers `~/.agents/skills`, so no settings change is required.
 This repository also works as a pi package:
 
 ```bash
-pi install /Users/liyanzhen/baidu/PRIVATE/edward-skill-collection
+pi install /Users/liyanzhen/baidu/PUBLIC_REPO/edward-skill-collection
 ```
 
 ## Maintenance
