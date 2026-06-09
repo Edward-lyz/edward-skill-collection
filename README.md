@@ -6,7 +6,6 @@ Private agent skill collection for Claude Code, Codex, and pi.
 
 ```text
 skills/
-  brainstorming/
   code-philosophy-check/
   cuda/
   dev-machine-remote/
@@ -31,7 +30,6 @@ skill-name/
 
 | Skill | Purpose |
 | --- | --- |
-| `brainstorming` | Turn ideas into approved designs/specs before implementation. |
 | `code-philosophy-check` | Check changed code against local code philosophy rules. |
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
