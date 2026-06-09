@@ -10,6 +10,7 @@ skills/
   cuda/
   dev-machine-remote/
   grill-me/
+  lsp-callgraph/
   op-profiler/
   python-dev-standards/
 scripts/
@@ -34,6 +35,7 @@ skill-name/
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
 | `grill-me` | Stress-test a plan through iterative questioning. |
+| `lsp-callgraph` | Generate bounded LSP call hierarchy graphs as interactive HTML. |
 | `op-profiler` | Remote operator profiling workflow. |
 | `python-dev-standards` | Python development and review standards. |
 
