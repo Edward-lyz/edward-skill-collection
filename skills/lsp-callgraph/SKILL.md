@@ -46,11 +46,11 @@ python3 skills/lsp-callgraph/scripts/lsp_callgraph.py \
   --lsp-command 'npx --yes --package pyright pyright-langserver --stdio' \
   --direction outgoing \
   --depth 3 \
-  --max-nodes 80 \
-  --output .pi/callgraphs/callgraph.html
+  --max-nodes 80
 ```
 
 `--seed-line` 是 1-based，`--seed-character` 是 0-based。
+不传 `--output` 时，默认写到 `/tmp/lsp-callgraph/`。
 
 ## 工作流
 
@@ -81,6 +81,5 @@ python3 PUBLIC_REPO/edward-skill-collection/skills/lsp-callgraph/scripts/lsp_cal
   --lsp-command 'npx --yes --package pyright pyright-langserver --stdio' \
   --direction outgoing \
   --depth 3 \
-  --max-nodes 80 \
-  --output PRIVATE/archive/callgraph_html_demo/simulator_v2_lsp_callgraph.html
+  --max-nodes 80
 ```

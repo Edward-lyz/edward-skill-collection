@@ -47,7 +47,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-nodes", type=int, default=80)
     parser.add_argument("--startup-wait", type=float, default=2.0)
     parser.add_argument("--exclude-substring", action="append", default=[])
-    parser.add_argument("--output", required=True, type=pathlib.Path)
+    parser.add_argument(
+        "--output",
+        type=pathlib.Path,
+        help="HTML output path. Defaults to /tmp/lsp-callgraph/<repo>-<seed>-<line>-<character>.html",
+    )
     return parser.parse_args()
 
 
@@ -327,7 +331,10 @@ def main() -> int:
     root = args.root.resolve()
     seed_file = args.seed_file if args.seed_file.is_absolute() else root / args.seed_file
     seed_file = seed_file.resolve()
-    output_path = args.output.resolve()
+    output_path = args.output.resolve() if args.output else pathlib.Path(
+        "/tmp/lsp-callgraph",
+        f"{root.name}-{seed_file.stem}-{args.seed_line}-{args.seed_character}.html",
+    )
     payload_path = output_path.with_suffix(".json")
     exclude_substrings = tuple(DEFAULT_EXCLUDES) + tuple(args.exclude_substring)
     lsp_command = shlex.split(args.lsp_command)
