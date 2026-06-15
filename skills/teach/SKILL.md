@@ -66,7 +66,7 @@ Lessons are Markdown but should exploit its full expressive range for rich rende
 - **Callouts**: Use `> 💡 ...` / `> ⚠️ ...` / `> ✅ ...` blockquotes as semantic callout boxes.
 - **Tables**: Use GFM tables for comparisons, metrics, and reference data.
 - **Code blocks**: Fenced with language annotation for syntax highlighting.
-- **Collapsible sections**: Use `<details><summary>...</summary>...</details>` for quizzes and optional deep-dives.
+- **Quiz / Q&A**: Use **bold question** followed by `>` blockquote answer. Avoid `<details>` — not supported in Notion and many renderers.
 - **Diagrams**: Use ASCII art or fenced mermaid blocks when structure aids understanding.
 - **Horizontal rules** (`---`): Use to separate major sections visually.
 - **Emphasis hierarchy**: `#` / `##` / `###` for structure; **bold** for key terms on first use; `code` for identifiers.
