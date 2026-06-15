@@ -13,6 +13,7 @@ skills/
   lsp-callgraph/
   op-profiler/
   python-dev-standards/
+  teach/
 scripts/
   link-local.sh
 ```
@@ -38,6 +39,7 @@ skill-name/
 | `lsp-callgraph` | Generate bounded LSP call hierarchy graphs as interactive HTML. |
 | `op-profiler` | Remote operator profiling workflow. |
 | `python-dev-standards` | Python development and review standards. |
+| `teach` | Stateful workspace-based teaching sessions. |
 
 ## Local linking
 
