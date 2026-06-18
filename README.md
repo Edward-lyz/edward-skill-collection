@@ -7,13 +7,21 @@ Private agent skill collection for Claude Code, Codex, and pi.
 ```text
 skills/
   code-philosophy-check/
+  codebase-design/
   cuda/
   dev-machine-remote/
+  diagnosing-bugs/
+  domain-modeling/
   grill-me/
+  handoff/
   lsp-callgraph/
   op-profiler/
   python-dev-standards/
+  tdd/
   teach/
+  writing-great-skills/
+third_party/
+  mattpocock-skills/
 scripts/
   link-local.sh
 ```
@@ -33,13 +41,25 @@ skill-name/
 | Skill | Purpose |
 | --- | --- |
 | `code-philosophy-check` | Check changed code against local code philosophy rules. |
+| `codebase-design` | Shared vocabulary for deep modules, seams, interfaces, leverage, and locality. |
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
+| `diagnosing-bugs` | Disciplined diagnosis loop for hard bugs and performance regressions. |
+| `domain-modeling` | Build project glossary and ADRs when domain terminology needs sharpening. |
 | `grill-me` | Stress-test a plan through iterative questioning. |
+| `handoff` | Write a redacted handoff document for another agent session. |
 | `lsp-callgraph` | Generate bounded LSP call hierarchy graphs as interactive HTML. |
 | `op-profiler` | Remote operator profiling workflow. |
 | `python-dev-standards` | Python development and review standards. |
+| `tdd` | Test-driven development through vertical red-green-refactor slices. |
 | `teach` | Stateful workspace-based teaching sessions. |
+| `writing-great-skills` | Reference for writing and editing predictable agent skills. |
+
+## Upstream imports
+
+Selected skills from `mattpocock/skills` are tracked in `skills-lock.json`.
+The upstream MIT license is preserved at
+`third_party/mattpocock-skills/LICENSE`.
 
 ## Local linking
 
