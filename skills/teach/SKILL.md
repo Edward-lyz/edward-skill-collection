@@ -54,11 +54,25 @@ The lesson should be short, and completable very quickly. Learners' working memo
 
 If possible, open the lesson file for the user by running a CLI command.
 
-Each lesson should link via HTML anchors to other lessons and reference documents.
+### Lesson Structure
 
-Each lesson should recommend a primary source for the user to read or watch. This should be the most high-quality, high-trust resource you found on the topic.
+Every lesson must follow this exact section order:
 
-Each lesson should contain a reminder to ask followup questions to the agent. The agent is their teacher, and can assist with anything that's unclear.
+1. **一图流** — A hero interactive animation (pure JS/CSS, responsive `%` positioning, stepped via button clicks) at the very top. This gives the learner an immediate visual anchor for the whole topic.
+2. **背景** — Why this innovation/concept exists. What problem does it solve? What prior approaches fell short?
+3. **创新点及其数学/工程依据** — The key ideas, each accompanied by its mathematical or engineering justification.
+4. **公式推导** — Step-by-step derivation of the core formulas. Never skip steps.
+5. **小结** — A concise summary with a comparison table if applicable.
+6. **Quiz** — 2–4 multiple-choice questions with immediate feedback (correct/incorrect explanations).
+
+### Lesson Formatting Rules
+
+- **No header/footer chrome**: no `lesson-meta` div, no `lesson-nav` div, no `followup` div. The lesson is a clean document starting with `<h1>` and ending after the last quiz.
+- **No inter-lesson navigation links**: lessons are designed to be standalone publishable documents.
+- **Math rendering**: use KaTeX with `\( \)` / `\[ \]` delimiters.
+- **Animations**: use pure JS/CSS (no SVG, no Mermaid). Position elements with `%` for responsive layout. Provide a step-through button interface.
+- **Build script**: maintain a `build_standalone.py` (or equivalent) that produces a `./dist/` directory of single-file HTML lessons with all CSS/JS/animations inlined (only KaTeX CDN remains external).
+- **Quiz format**: use `<div class="quiz" data-answer="N">` with radio inputs and `.feedback.correct` / `.feedback.incorrect` divs. Include `quiz.js` inline in standalone builds.
 
 ## Assets
 
