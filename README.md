@@ -12,6 +12,7 @@ skills/
   dev-machine-remote/
   diagnosing-bugs/
   domain-modeling/
+  gorden-ppt-skill/
   grill-me/
   handoff/
   lsp-callgraph/
@@ -54,6 +55,7 @@ skill-name/
 | `tdd` | Test-driven development through vertical red-green-refactor slices. |
 | `teach` | Stateful workspace-based teaching sessions. |
 | `writing-great-skills` | Reference for writing and editing predictable agent skills. |
+| `gorden-ppt-skill` | AI-friendly Chinese PPT builder with 17 templates, text-only editing via python-pptx. |
 
 ## Upstream imports
 
