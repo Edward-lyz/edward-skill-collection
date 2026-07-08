@@ -7,6 +7,12 @@
       "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
       "license": "MIT",
       "licensePath": "third_party/mattpocock-skills/LICENSE"
+    },
+    "GordenSun/GordenSuperPPTSkills": {
+      "sourceType": "github",
+      "sourceCommit": "8c05583dab8334182b71738e8dfbbec5c56a1951",
+      "license": "Custom attribution terms in upstream README",
+      "licensePath": "third_party/GordenSuperPPTSkills/README.md"
     }
   },
   "skills": {
@@ -58,6 +64,13 @@
       "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
       "skillPath": "skills/productivity/writing-great-skills",
       "computedHash": "dbfb5fc35653f4dc5ac39fdaf8fb5267933c5e65b01678f7dae227ea627cf5c9"
+    },
+    "GordenImage2PPTX": {
+      "source": "GordenSun/GordenSuperPPTSkills",
+      "sourceType": "github",
+      "sourceCommit": "8c05583dab8334182b71738e8dfbbec5c56a1951",
+      "skillPath": "GordenImage2PPTX",
+      "computedHash": "a9de7073869e7ec780e6a83fb79c5a0b6a38c548e5cab6840398d8e41b989e41"
     }
   }
 }
