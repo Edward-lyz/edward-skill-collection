@@ -6,7 +6,7 @@ Private agent skill collection for Claude Code, Codex, and pi.
 
 ```text
 skills/
-  GordenImage2PPTX/
+  gorden-image2pptx/
   code-philosophy-check/
   codebase-design/
   cuda/
@@ -43,7 +43,7 @@ skill-name/
 
 | Skill | Purpose |
 | --- | --- |
-| `GordenImage2PPTX` | Convert slide images/screenshots back into editable PPTX using background, frame, icons, and text layers. |
+| `gorden-image2pptx` | Convert slide images/screenshots back into editable PPTX using background, frame, icons, and text layers. |
 | `code-philosophy-check` | Check changed code against local code philosophy rules. |
 | `codebase-design` | Shared vocabulary for deep modules, seams, interfaces, leverage, and locality. |
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
@@ -66,7 +66,7 @@ Selected skills from `mattpocock/skills` are tracked in `skills-lock.json`.
 The upstream MIT license is preserved at
 `third_party/mattpocock-skills/LICENSE`.
 
-`GordenImage2PPTX` is imported from `GordenSun/GordenSuperPPTSkills`.
+`gorden-image2pptx` is imported from `GordenSun/GordenSuperPPTSkills` upstream path `GordenImage2PPTX`.
 Its upstream README and attribution notice are preserved at
 `third_party/GordenSuperPPTSkills/README.md`.
 

@@ -65,12 +65,12 @@
       "skillPath": "skills/productivity/writing-great-skills",
       "computedHash": "dbfb5fc35653f4dc5ac39fdaf8fb5267933c5e65b01678f7dae227ea627cf5c9"
     },
-    "GordenImage2PPTX": {
+    "gorden-image2pptx": {
       "source": "GordenSun/GordenSuperPPTSkills",
       "sourceType": "github",
       "sourceCommit": "8c05583dab8334182b71738e8dfbbec5c56a1951",
       "skillPath": "GordenImage2PPTX",
-      "computedHash": "a9de7073869e7ec780e6a83fb79c5a0b6a38c548e5cab6840398d8e41b989e41"
+      "computedHash": "ecc7d69710cc9b499ae3df0231726c55bfe46d378aeab56d35f0cad1b7ce9c9b"
     }
   }
 }
