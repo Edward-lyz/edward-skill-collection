@@ -27,6 +27,10 @@ fi
 ln -sfn "$skills_dir" "$pi_global_skills"
 
 for skill_path in "$skills_dir"/*; do
+  if [ -L "$skill_path" ] && [ ! -e "$skill_path" ]; then
+    echo "broken skill link: $skill_path; initialize repository submodules" >&2
+    exit 1
+  fi
   [ -d "$skill_path" ] || continue
   skill_name=$(basename "$skill_path")
   codex_link="$codex_skills/$skill_name"

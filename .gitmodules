@@ -1,0 +1,4 @@
+[submodule "third_party/mattpocock-skills"]
+	path = third_party/mattpocock-skills
+	url = https://github.com/mattpocock/skills.git
+	branch = main

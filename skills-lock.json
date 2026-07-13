@@ -2,12 +2,6 @@
   "version": 1,
   "hashAlgorithm": "sha256 over each installed skill directory: relative file path, NUL, file bytes, NUL, sorted by relative path",
   "sources": {
-    "mattpocock/skills": {
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "license": "MIT",
-      "licensePath": "third_party/mattpocock-skills/LICENSE"
-    },
     "GordenSun/GordenSuperPPTSkills": {
       "sourceType": "github",
       "sourceCommit": "8c05583dab8334182b71738e8dfbbec5c56a1951",
@@ -16,55 +10,6 @@
     }
   },
   "skills": {
-    "codebase-design": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "skillPath": "skills/engineering/codebase-design",
-      "computedHash": "6af47ce35b6d06ce5a06201ab222c29d77fdd0211168526f30035a24e6873c7b"
-    },
-    "diagnosing-bugs": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "skillPath": "skills/engineering/diagnosing-bugs",
-      "computedHash": "30d504909484072b68fd2662cf1874da1d5f2c57fa02cbfc0750896c269713bb"
-    },
-    "domain-modeling": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "skillPath": "skills/engineering/domain-modeling",
-      "computedHash": "9c70797062c1017367293905782a5a3a6b8f3ea85148abc172996a8de3f60071"
-    },
-    "handoff": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "skillPath": "skills/productivity/handoff",
-      "computedHash": "9d467ac388762c34b7fbb1683ba54af1f8918c28e1a1a98bc0f1ca840f94a9cf"
-    },
-    "tdd": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "skillPath": "skills/engineering/tdd",
-      "computedHash": "efbbe0111b610ff44a6459d1de5cb363db98d1683a10700cdd7de1eb866a6c90"
-    },
-    "teach": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "skillPath": "skills/productivity/teach",
-      "computedHash": "63feafa166e24e8b85376accae0af357beb1874c61776acc32c1d39a6fce9bc4"
-    },
-    "writing-great-skills": {
-      "source": "mattpocock/skills",
-      "sourceType": "github",
-      "sourceCommit": "2454c95dc305c158b21a0cdafeb728879dd0359a",
-      "skillPath": "skills/productivity/writing-great-skills",
-      "computedHash": "dbfb5fc35653f4dc5ac39fdaf8fb5267933c5e65b01678f7dae227ea627cf5c9"
-    },
     "gorden-image2pptx": {
       "source": "GordenSun/GordenSuperPPTSkills",
       "sourceType": "github",

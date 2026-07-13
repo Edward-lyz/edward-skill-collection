@@ -6,27 +6,14 @@ Private agent skill collection for Claude Code, Codex, and pi.
 
 ```text
 skills/
-  gorden-image2pptx/
-  code-philosophy-check/
-  codebase-design/
-  cuda/
-  dev-machine-remote/
-  diagnosing-bugs/
-  domain-modeling/
-  gorden-ppt-skill/
-  grill-me/
-  handoff/
-  lsp-callgraph/
-  op-profiler/
-  python-dev-standards/
-  tdd/
-  teach/
-  writing-great-skills/
+  <local-skill>/
+  <matt-productivity-skill> -> ../third_party/mattpocock-skills/skills/productivity/<skill>
 third_party/
   GordenSuperPPTSkills/
-  mattpocock-skills/
+  mattpocock-skills/  # Git submodule
 scripts/
   link-local.sh
+  sync-matt-skills.sh
 ```
 
 Each skill follows the Agent Skills directory format:
@@ -39,32 +26,34 @@ skill-name/
   assets/
 ```
 
-## Skills
+## Local skills
 
 | Skill | Purpose |
 | --- | --- |
 | `gorden-image2pptx` | Convert slide images/screenshots back into editable PPTX using background, frame, icons, and text layers. |
 | `code-philosophy-check` | Check changed code against local code philosophy rules. |
-| `codebase-design` | Shared vocabulary for deep modules, seams, interfaces, leverage, and locality. |
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
-| `diagnosing-bugs` | Disciplined diagnosis loop for hard bugs and performance regressions. |
-| `domain-modeling` | Build project glossary and ADRs when domain terminology needs sharpening. |
-| `grill-me` | Stress-test a plan through iterative questioning. |
-| `handoff` | Write a redacted handoff document for another agent session. |
 | `lsp-callgraph` | Generate bounded LSP call hierarchy graphs as interactive HTML. |
 | `op-profiler` | Remote operator profiling workflow. |
 | `python-dev-standards` | Python development and review standards. |
-| `tdd` | Test-driven development through vertical red-green-refactor slices. |
 | `teach` | Stateful workspace-based teaching sessions. |
-| `writing-great-skills` | Reference for writing and editing predictable agent skills. |
 | `gorden-ppt-skill` | AI-friendly Chinese PPT builder with 17 templates, text-only editing via python-pptx. |
 
 ## Upstream imports
 
-Selected skills from `mattpocock/skills` are tracked in `skills-lock.json`.
-The upstream MIT license is preserved at
-`third_party/mattpocock-skills/LICENSE`.
+`mattpocock/skills` is mounted as the
+`third_party/mattpocock-skills` Git submodule. Every upstream directory under
+`skills/productivity` that contains a `SKILL.md` is exposed through a flat
+relative symlink under the local `skills/` directory. The only exclusion is
+`teach`, which remains the local implementation.
+
+Initialize the submodule after cloning:
+
+```bash
+git submodule update --init --recursive
+./scripts/sync-matt-skills.sh
+```
 
 `gorden-image2pptx` is imported from `GordenSun/GordenSuperPPTSkills` upstream path `GordenImage2PPTX`.
 Its upstream README and attribution notice are preserved at
@@ -108,6 +97,22 @@ cp -a /path/to/skill skills/<skill-name>
 git add skills/<skill-name>
 git commit -m 'Add <skill-name> skill'
 ```
+
+Update the Matt Pocock skills to the latest upstream `main` commit:
+
+```bash
+git submodule update --remote --checkout third_party/mattpocock-skills
+./scripts/sync-matt-skills.sh
+git add third_party/mattpocock-skills skills
+git commit -m 'Update Matt Pocock skills'
+```
+
+The sync script adds newly published Matt productivity skills, removes links
+for deleted skills, and fails on duplicate names or collisions with local
+skills.
+
+The parent repository deliberately pins the reviewed submodule commit; an
+ordinary `git pull` does not silently advance it.
 
 Validate skill discovery:
 
