@@ -56,31 +56,38 @@ If possible, open the lesson file for the user by running a CLI command.
 
 ### Lesson Structure
 
-Every lesson must follow this exact section order:
+Build the shortest lesson that gives the learner one tangible win. Every lesson must:
 
-1. **一图流** — A hero interactive animation (pure JS/CSS, responsive `%` positioning, stepped via button clicks) at the very top. This gives the learner an immediate visual anchor for the whole topic.
-2. **背景** — Why this innovation/concept exists. What problem does it solve? What prior approaches fell short?
-3. **创新点及其数学/工程依据** — The key ideas, each accompanied by its mathematical or engineering justification.
-4. **公式推导** — Step-by-step derivation of the core formulas. Never skip steps.
-5. **小结** — A concise summary with a comparison table if applicable.
-6. **Quiz** — 2–4 multiple-choice questions with immediate feedback (correct/incorrect explanations).
+1. Start with `<h1>` followed by one sentence stating what the learner will be able to do.
+2. Teach only the knowledge required for that outcome.
+3. End with active practice and immediate feedback.
+
+Add sections only when they advance the outcome:
+
+- **Visual anchor** — Use a figure, table, code sample, worked example, or interactive when it makes a relationship easier to understand. Use animation only when motion, time, or a state transition is part of the concept.
+- **背景** — Explain the prior problem when it changes how the learner understands the solution.
+- **核心原理及依据** — Support technical claims with the necessary mathematical or engineering reasoning.
+- **公式推导** — Include a step-by-step derivation only when a core formula exists and deriving it serves the mission. Never invent mathematical framing for a non-mathematical topic.
+- **小结** — Add a concise retrieval prompt or comparison when it improves retention; do not restate the lesson mechanically.
+- **Quiz or task** — Choose the smallest exercise that tests the target skill. Use 2–4 multiple-choice questions only when recognition is the right form of practice.
 
 ### Lesson Formatting Rules
 
-- **No header/footer chrome**: no `lesson-meta` div, no `lesson-nav` div, no `followup` div. The lesson is a clean document starting with `<h1>` and ending after the last quiz.
+- **No header/footer chrome**: no `lesson-meta` div, no `lesson-nav` div, no `followup` div. The lesson is a clean document starting with `<h1>` and ending after the final practice and feedback.
 - **No inter-lesson navigation links**: lessons are designed to be standalone publishable documents.
-- **Math rendering**: use KaTeX with `\( \)` / `\[ \]` delimiters.
-- **Animations**: use pure JS/CSS (no SVG, no Mermaid). Position elements with `%` for responsive layout. Provide a step-through button interface.
+- **Math rendering**: when the lesson contains mathematics, use KaTeX with `\( \)` / `\[ \]` delimiters.
+- **Animations**: when animation is necessary, use pure JS/CSS (no SVG, no Mermaid), position elements with `%` for responsive layout, and provide explicit step controls. Do not add a hero animation for decoration.
+- **Visual restraint**: do not add cards, badges, callouts, gradients, glows, or motion merely to make the page feel designed. Every visual element must communicate structure, state, evidence, or interaction.
 - **Build script**: maintain a `build_standalone.py` (or equivalent) that produces a `./dist/` directory of single-file HTML lessons with all CSS/JS/animations inlined (only KaTeX CDN remains external).
-- **Quiz format**: use `<div class="quiz" data-answer="N">` with radio inputs and `.feedback.correct` / `.feedback.incorrect` divs. Include `quiz.js` inline in standalone builds.
+- **Quiz format**: when using multiple-choice questions, use `<div class="quiz" data-answer="N">` with radio inputs and `.feedback.correct` / `.feedback.incorrect` divs. Include `quiz.js` inline in standalone builds.
 
 ## Assets
 
-Lessons are built from reusable **components**, stored in `./assets/`: stylesheets, quiz widgets, simulators, diagram helpers — anything a second lesson could reuse.
+Store components shared by multiple lessons in `./assets/`: stylesheets, quiz widgets, simulators, and diagram helpers.
 
-Reuse is the default, not the exception. Before authoring a lesson, read `./assets/` and build from the components already there. When a lesson needs something new and reusable, write it as a component in `./assets/` and link to it — never inline code a future lesson would duplicate.
+Before authoring a lesson, read `./assets/` and reuse an existing component when its semantics fit. Do not distort content to fit a component. Keep lesson-specific HTML, CSS, or JS local until the same semantic pattern recurs or one shared implementation is required for correctness; do not extract components for imagined future duplication.
 
-A shared stylesheet is the first component every workspace earns: every lesson links it, so the lessons look like one consistent course rather than a pile of one-offs. As the workspace grows, so should the component library.
+A shared stylesheet is the first component every workspace earns: every lesson links it, so the lessons look like one consistent course rather than a pile of one-offs. Add other components only after the need is demonstrated, and remove components that no lesson uses.
 
 ## The Mission
 

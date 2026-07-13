@@ -8,118 +8,17 @@
 </head>
 <body>
 
-<header>
-  <p class="eyebrow">{{CATEGORY}}</p>
-  <h1>{{TITLE}}</h1>
-  <p class="subtitle">{{SUBTITLE}}</p>
-  <div class="meta">
-    <time>{{DATE}}</time>
-    <span aria-hidden="true">/</span>
-    <span>{{READ_TIME}}</span>
-  </div>
-</header>
-
 <article>
+  <h1>{{TITLE}}</h1>
+  <p class="subtitle">{{LEARNING_OUTCOME}}</p>
 
-<!-- ═══════════════════════════════════════════════
-     CONTENT STARTS HERE
-     Replace placeholders above and write below.
-     ═══════════════════════════════════════════════ -->
+  <!-- Add only the sections and visual components required for this outcome. -->
+  <section>
+    <h2>{{SECTION_TITLE}}</h2>
+    <p>{{CONTENT}}</p>
+  </section>
 
-<h2>Section Title</h2>
-
-<p>Body text goes here. Use <code>inline code</code> for technical terms.</p>
-
-<blockquote>Blockquotes for important callouts or cited text.</blockquote>
-
-<pre><code>code_block:
-  key: value
-  another: 42</code></pre>
-
-<!-- Evidence grid example -->
-<figure class="chart">
-  <figcaption>
-    <div class="chart-title">Evidence Grid Example</div>
-    <p>Explanation of what this grid shows.</p>
-  </figcaption>
-  <div class="evidence-grid" style="--cols: 3">
-    <div class="header">
-      <span>Signal</span>
-      <span>Column A</span><span>Column B</span><span>Column C</span>
-    </div>
-    <div class="row">
-      <span class="label">Row label</span>
-      <span class="value">value 1</span><span class="value">value 2</span><span class="value">value 3</span>
-    </div>
-  </div>
-</figure>
-
-<!-- Delta bars example -->
-<figure class="chart">
-  <figcaption>
-    <div class="chart-title">Delta Comparison</div>
-    <p>Shows movement between two states.</p>
-  </figcaption>
-  <div class="delta-bars">
-    <div class="delta-row">
-      <div class="delta-label">Metric name</div>
-      <div class="delta-values">
-        <span>Before: 1,000</span>
-        <span>After: 1,200</span>
-      </div>
-      <div class="delta-axis">
-        <span class="delta-axis-line"></span>
-        <span class="delta-fill" style="--offset: 50%; --width: 20%"></span>
-      </div>
-      <span class="delta-value pos">+200</span>
-    </div>
-    <div class="delta-row">
-      <div class="delta-label">Another metric</div>
-      <div class="delta-values">
-        <span>Before: 500</span>
-        <span>After: 400</span>
-      </div>
-      <div class="delta-axis">
-        <span class="delta-axis-line"></span>
-        <span class="delta-fill neg" style="--offset: 30%; --width: 20%"></span>
-      </div>
-      <span class="delta-value neg">-100</span>
-    </div>
-  </div>
-</figure>
-
-<!-- Result cards example -->
-<div class="result-grid">
-  <div class="result-card">
-    <div class="result-card-top">
-      <div><span>Baseline</span><small>commit abc123</small></div>
-      <span class="badge pass">pass</span>
-    </div>
-    <dl>
-      <div class="kpi"><dt>Score</dt><dd>0.445</dd></div>
-    </dl>
-  </div>
-  <div class="result-card">
-    <div class="result-card-top">
-      <div><span>Changed</span><small>commit def456</small></div>
-      <span class="badge fail">fail</span>
-    </div>
-    <dl>
-      <div class="kpi"><dt>Score</dt><dd>0.360</dd></div>
-    </dl>
-  </div>
-</div>
-
-<!-- Table example -->
-<table>
-  <thead><tr><th>Instruction</th><th>Count</th></tr></thead>
-  <tbody>
-    <tr><td>ld.global.b32</td><td>4</td></tr>
-    <tr><td>st.shared.b64</td><td>8</td></tr>
-  </tbody>
-</table>
-
-<p class="note">Footnote or supplementary explanation in muted style.</p>
+  <!-- End with active practice that provides immediate feedback. -->
 
 </article>
 </body>
