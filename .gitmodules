@@ -2,3 +2,7 @@
 	path = third_party/mattpocock-skills
 	url = https://github.com/mattpocock/skills.git
 	branch = main
+[submodule "third_party/kill-ai-slop"]
+	path = third_party/kill-ai-slop
+	url = https://github.com/yetone/kill-ai-slop.git
+	branch = main

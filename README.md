@@ -10,6 +10,7 @@ skills/
   <matt-productivity-skill> -> ../third_party/mattpocock-skills/skills/productivity/<skill>
 third_party/
   GordenSuperPPTSkills/
+  kill-ai-slop/       # Git submodule
   mattpocock-skills/  # Git submodule
 scripts/
   link-local.sh
@@ -41,6 +42,10 @@ skill-name/
 | `gorden-ppt-skill` | AI-friendly Chinese PPT builder with 17 templates, text-only editing via python-pptx. |
 
 ## Upstream imports
+
+`yetone/kill-ai-slop` is mounted as the `third_party/kill-ai-slop` Git
+submodule. Its Agent Skill is exposed as `skills/kill-ai-slop` through a
+relative symlink.
 
 `mattpocock/skills` is mounted as the
 `third_party/mattpocock-skills` Git submodule. Every upstream directory under
