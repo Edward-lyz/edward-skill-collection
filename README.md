@@ -7,7 +7,7 @@ Private agent skill collection for Claude Code, Codex, and pi.
 ```text
 skills/
   <local-skill>/
-  <matt-productivity-skill> -> ../third_party/mattpocock-skills/skills/productivity/<skill>
+  <matt-skill> -> ../third_party/mattpocock-skills/skills/<category>/<skill>
 third_party/
   GordenSuperPPTSkills/
   kill-ai-slop/       # Git submodule
@@ -51,7 +51,9 @@ relative symlink.
 `third_party/mattpocock-skills` Git submodule. Every upstream directory under
 `skills/productivity` that contains a `SKILL.md` is exposed through a flat
 relative symlink under the local `skills/` directory. The only exclusion is
-`teach`, which remains the local implementation.
+`teach`, which remains the local implementation. The selected engineering
+skills are `code-review`, `diagnosing-bugs`, `domain-modeling`, `implement`,
+`research`, `resolving-merge-conflicts`, `tdd`, `to-spec`, and `to-tickets`.
 
 Initialize the submodule after cloning:
 
@@ -112,9 +114,9 @@ git add third_party/mattpocock-skills skills
 git commit -m 'Update Matt Pocock skills'
 ```
 
-The sync script adds newly published Matt productivity skills, removes links
-for deleted skills, and fails on duplicate names or collisions with local
-skills.
+The sync script adds newly published Matt productivity skills and the selected
+engineering skills, removes links for deleted skills, and fails on missing
+selected skills, duplicate names, or collisions with local skills.
 
 The parent repository deliberately pins the reviewed submodule commit; an
 ordinary `git pull` does not silently advance it.

@@ -3,7 +3,19 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 skills_dir="$repo_root/skills"
-matt_productivity_dir="$repo_root/third_party/mattpocock-skills/skills/productivity"
+matt_skills_dir="$repo_root/third_party/mattpocock-skills/skills"
+matt_productivity_dir="$matt_skills_dir/productivity"
+engineering_skills=(
+  code-review
+  diagnosing-bugs
+  domain-modeling
+  implement
+  research
+  resolving-merge-conflicts
+  tdd
+  to-spec
+  to-tickets
+)
 
 if [ ! -d "$matt_productivity_dir" ]; then
   echo "Matt skills submodule is not initialized; run git submodule update --init --recursive" >&2
@@ -19,6 +31,15 @@ skill_files_file=$(mktemp)
 trap 'rm -f "$mapping_file" "$skill_files_file"' EXIT
 
 find "$matt_productivity_dir" -type f -name SKILL.md -print | LC_ALL=C sort >"$skill_files_file"
+for skill_name in "${engineering_skills[@]}"; do
+  skill_file="$matt_skills_dir/engineering/$skill_name/SKILL.md"
+  if [ ! -f "$skill_file" ]; then
+    echo "missing selected Matt engineering skill: $skill_file" >&2
+    exit 1
+  fi
+  printf '%s\n' "$skill_file" >>"$skill_files_file"
+done
+LC_ALL=C sort -o "$skill_files_file" "$skill_files_file"
 
 skill_count=0
 while IFS= read -r skill_file; do
@@ -31,7 +52,7 @@ while IFS= read -r skill_file; do
 done <"$skill_files_file"
 
 if [ "$skill_count" -eq 0 ]; then
-  echo "no Matt productivity skills found in $matt_productivity_dir" >&2
+  echo "no selected Matt skills found in $matt_skills_dir" >&2
   exit 1
 fi
 
@@ -77,4 +98,4 @@ while IFS=$'\t' read -r skill_name relative_target; do
   ln -sfn "$relative_target" "$skills_dir/$skill_name"
 done <"$mapping_file"
 
-echo "linked $skill_count Matt productivity skills; kept local teach"
+echo "linked $skill_count selected Matt skills; kept local teach"
