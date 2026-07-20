@@ -6,3 +6,7 @@
 	path = third_party/kill-ai-slop
 	url = https://github.com/yetone/kill-ai-slop.git
 	branch = main
+[submodule "third_party/i-have-adhd"]
+	path = third_party/i-have-adhd
+	url = https://github.com/ayghri/i-have-adhd.git
+	branch = main

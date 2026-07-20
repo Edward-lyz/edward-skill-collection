@@ -7,6 +7,12 @@
       "sourceCommit": "8c05583dab8334182b71738e8dfbbec5c56a1951",
       "license": "Custom attribution terms in upstream README",
       "licensePath": "third_party/GordenSuperPPTSkills/README.md"
+    },
+    "ayghri/i-have-adhd": {
+      "sourceType": "github",
+      "sourceCommit": "72c33eee81ea439cf01991e93729adfce2ffc99e",
+      "license": "MIT",
+      "licensePath": "third_party/i-have-adhd/LICENSE"
     }
   },
   "skills": {
@@ -16,6 +22,13 @@
       "sourceCommit": "8c05583dab8334182b71738e8dfbbec5c56a1951",
       "skillPath": "GordenImage2PPTX",
       "computedHash": "ecc7d69710cc9b499ae3df0231726c55bfe46d378aeab56d35f0cad1b7ce9c9b"
+    },
+    "i-have-adhd": {
+      "source": "ayghri/i-have-adhd",
+      "sourceType": "github",
+      "sourceCommit": "72c33eee81ea439cf01991e93729adfce2ffc99e",
+      "skillPath": "skills/i-have-adhd",
+      "computedHash": "2cbbcaf02374a3f20cbaddcf97fa81f11ddf88952c3d7972471dd86c3bad74d3"
     }
   }
 }
