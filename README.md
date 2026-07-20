@@ -33,6 +33,7 @@ skill-name/
 | --- | --- |
 | `gorden-image2pptx` | Convert slide images/screenshots back into editable PPTX using background, frame, icons, and text layers. |
 | `code-philosophy-check` | Check changed code against local code philosophy rules. |
+| `branch-replay` | Per-commit branch replay onto a new base with a migration report. |
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
 | `lsp-callgraph` | Generate bounded LSP call hierarchy graphs as interactive HTML. |
