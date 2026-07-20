@@ -36,7 +36,6 @@ skill-name/
 | `branch-replay` | Per-commit branch replay onto a new base with a migration report. |
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
-| `lsp-callgraph` | Generate bounded LSP call hierarchy graphs as interactive HTML. |
 | `op-profiler` | Remote operator profiling workflow. |
 | `python-dev-standards` | Python development and review standards. |
 | `teach` | Stateful workspace-based teaching sessions. |
@@ -53,8 +52,7 @@ relative symlink.
 `skills/productivity` that contains a `SKILL.md` is exposed through a flat
 relative symlink under the local `skills/` directory. The only exclusion is
 `teach`, which remains the local implementation. The selected engineering
-skills are `code-review`, `diagnosing-bugs`, `domain-modeling`, `implement`,
-`research`, `resolving-merge-conflicts`, `tdd`, `to-spec`, and `to-tickets`.
+skills are `diagnosing-bugs` and `research`.
 
 Initialize the submodule after cloning:
 
