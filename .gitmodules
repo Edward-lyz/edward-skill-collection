@@ -10,3 +10,6 @@
 	path = third_party/i-have-adhd
 	url = https://github.com/ayghri/i-have-adhd.git
 	branch = main
+[submodule "third_party/muted-zine-poster-v01"]
+	path = third_party/muted-zine-poster-v01
+	url = https://github.com/moonlin1213/muted-zine-poster-v01.git
