@@ -1,0 +1,398 @@
+[
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Question or topic to search for.",
+        "kind": "str",
+        "name": "query",
+        "required": true
+      }
+    ],
+    "category": "docs",
+    "cli_command": "search-docs",
+    "description": "Search packaged release docs, curated references, and recipe references.",
+    "guardrail_groups": [
+      "recipe_evidence"
+    ],
+    "name": "nsys_search_docs",
+    "public_label": "packaged documentation search",
+    "requires_report": false,
+    "service_method": "search_docs"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Task or recipe concept to search for.",
+        "kind": "str",
+        "name": "query",
+        "required": true
+      }
+    ],
+    "category": "recipe",
+    "cli_command": "lookup-recipes",
+    "description": "Find installed recipes relevant to a task without running them.",
+    "guardrail_groups": [
+      "recipe_evidence"
+    ],
+    "name": "nsys_lookup_recipes",
+    "public_label": "recipe lookup",
+    "requires_report": false,
+    "service_method": "lookup_recipes"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": "",
+        "description": "Command, recipe command, or flag to inspect.",
+        "kind": "str",
+        "name": "target",
+        "required": false
+      }
+    ],
+    "category": "cli",
+    "cli_command": "inspect-cli",
+    "description": "Inspect live nsys command, recipe-command, or flag help.",
+    "guardrail_groups": [
+      "cli_evidence",
+      "recipe_evidence"
+    ],
+    "name": "nsys_inspect_cli",
+    "public_label": "live nsys help",
+    "requires_report": false,
+    "service_method": "inspect_cli"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [],
+    "category": "cli",
+    "cli_command": "doctor",
+    "description": "Check that the configured nsys CLI and recipe directory are usable.",
+    "guardrail_groups": [
+      "cli_evidence"
+    ],
+    "name": "nsys_doctor",
+    "public_label": "local nsys environment check",
+    "requires_report": false,
+    "service_method": "check_environment"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [],
+    "category": "report",
+    "cli_command": "report-cache-status",
+    "description": "Check whether native report Parquet/DuckDB cache artifacts already exist without exporting.",
+    "guardrail_groups": [
+      "report_evidence"
+    ],
+    "name": "nsys_report_cache_status",
+    "public_label": "report cache status",
+    "requires_report": false,
+    "service_method": ""
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [],
+    "category": "report",
+    "cli_command": "report-context",
+    "description": "Return full report overview and table inventory. Prefer nsys_report_fact for common questions because full context can be expensive on large native reports.",
+    "guardrail_groups": [
+      "report_evidence"
+    ],
+    "name": "nsys_get_report_context",
+    "public_label": "report context",
+    "requires_report": true,
+    "service_method": "get_report_context"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Report tables to describe.",
+        "kind": "list[str]",
+        "name": "tables",
+        "required": true
+      }
+    ],
+    "category": "report",
+    "cli_command": "report-describe",
+    "description": "Describe report table columns, row counts, and samples before SQL.",
+    "guardrail_groups": [
+      "report_evidence"
+    ],
+    "name": "nsys_describe_tables",
+    "public_label": "report table description",
+    "requires_report": true,
+    "service_method": "describe_tables"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Bounded read-only SQL query.",
+        "kind": "str",
+        "name": "sql",
+        "required": true
+      },
+      {
+        "default": "",
+        "description": "Optional original user question for boundary guidance.",
+        "kind": "str",
+        "name": "question",
+        "required": false
+      }
+    ],
+    "category": "report",
+    "cli_command": "report-query",
+    "description": "Run bounded read-only SQL for supporting report facts. Do not use raw SQL to validate recipe/domain semantics such as exposed communication or communication/compute overlap.",
+    "guardrail_groups": [
+      "report_evidence",
+      "measured_report_evidence"
+    ],
+    "name": "nsys_query_report",
+    "public_label": "report SQL query",
+    "requires_report": true,
+    "service_method": "query_report"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Stable report fact intent.",
+        "kind": "str",
+        "name": "intent",
+        "required": true
+      },
+      {
+        "default": "",
+        "description": "Optional metric within the intent.",
+        "kind": "str",
+        "name": "metric",
+        "required": false
+      },
+      {
+        "default": null,
+        "description": "Optional graphics frame index for frame-scoped fact intents.",
+        "kind": "int",
+        "name": "frame",
+        "required": false
+      },
+      {
+        "default": 10,
+        "description": "Maximum ranked result rows per fact (default 10, maximum 50).",
+        "kind": "int",
+        "name": "max_rows",
+        "required": false
+      }
+    ],
+    "category": "report",
+    "cli_command": "report-fact",
+    "description": "Return common measured facts with stable metric semantics. Use gpu_devices or activity_summary to separate visible GPUs from GPUs with activity. Use activity_summary for per-report category coverage and active GPU attribution. Use kernel_summary for launch counts, unique kernel names, total time, mean time, and longest single launch; use --metric max_single_duration for the longest launch. Use an unqualified cuda_api_summary for ambiguous API timing so total, mean, and longest-event interpretations stay visible. Use nvtx_presence for the exact NVTX_EVENTS row count. Use memcpy_summary with metric total_bytes for largest memory operation by byte volume. Use timeline_summary for bounded kernel timeline coverage and idle-gap facts. Use frame_summary to locate a graphics frame's time window and per-frame CPU frame time (DXGI/Vulkan/OpenGL present rows, else DxgKrnl ETW Present); stutter is one use, but per-frame timing answers any frame-time question. Use frame_scan --frame <N> to scan a frame's window for ETW and WDDM event evidence against a baseline neighbor frame; it returns event counts (not a cause verdict). Use graphics_api_summary for per-API DX12/Vulkan/OpenGL call timing (count, total/avg/max ms) ranked by total time; add --frame <N> to scope to a frame window (no nanosecond pasting) with each API's pct_of_frame, plus the paired GPU workload table. Use graphics_api_distribution for session-wide per-API call-duration percentiles (min/median/p95/p99/max) to separate steady-state cost from the tail; --metric <api_name> narrows to one API. Use graphics_api_timeline --metric <api_name> to detect back-to-back serialized chaining of one API's calls (the in-order command-queue pattern behind tiled-resource stutter). Use thread_scheduling for per-thread on-CPU and blocked-time upper bounds, with `*_confirmed_pct` as confidence in each bound: near 100% means confirmed sched-in/sched-out pairs, while a low value means missing transitions inflated the upper bound. It also reports the dominant block reason (the fence-wait / lock-contention / preemption distinction) and top OSRT_API blocking waits (e.g. `WaitForSingleObjectEx` on Windows, `pthread_cond_wait` on Linux); add --frame <N> to scope to one frame window. Use callstack_summary for leaf-symbol hotspots (cpuCycles=1 periodic samples = where time goes) and blocked_stacks (cpuCycles=0 scheduling event callstacks = why a thread came off CPU, e.g. a fence/wait call). Pass --metric <globalTid> (from thread_scheduling) to attribute one thread and --frame <N> to restrict samples to that frame window; without a metric symbols mix across threads. Use kernel_variance for kernel-duration spread and outlier evidence. Use nccl_distribution to distinguish NCCL event-table evidence from CUDA kernel names that contain nccl. Use nsight_compute_handoff for candidate kernels for separate Nsight Compute inspection.",
+    "guardrail_groups": [
+      "report_evidence",
+      "measured_report_evidence"
+    ],
+    "name": "nsys_report_fact",
+    "public_label": "deterministic report fact",
+    "requires_report": true,
+    "service_method": "report_fact"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [],
+    "category": "report",
+    "cli_command": "report-doctor",
+    "description": "Run deterministic checks for empty/incomplete/inconsistent report data.",
+    "guardrail_groups": [
+      "report_evidence",
+      "measured_report_evidence"
+    ],
+    "name": "nsys_report_doctor",
+    "public_label": "report health check",
+    "requires_report": true,
+    "service_method": "report_doctor"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Schema concept, table, or column to search for.",
+        "kind": "str",
+        "name": "query",
+        "required": true
+      }
+    ],
+    "category": "docs",
+    "cli_command": "lookup-schema",
+    "description": "Search packaged SQLite Schema Reference documentation.",
+    "guardrail_groups": [],
+    "name": "nsys_lookup_schema",
+    "public_label": "SQLite schema reference lookup",
+    "requires_report": false,
+    "service_method": "lookup_schema"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [],
+    "category": "recipe",
+    "cli_command": "list-recipes",
+    "description": "List installed recipes from live nsys recipe help.",
+    "guardrail_groups": [
+      "cli_evidence",
+      "recipe_evidence"
+    ],
+    "name": "nsys_list_recipes",
+    "public_label": "installed recipe list",
+    "requires_report": false,
+    "service_method": "list_recipes"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Installed recipe name.",
+        "kind": "str",
+        "name": "recipe_name",
+        "required": true
+      }
+    ],
+    "category": "recipe",
+    "cli_command": "explain-recipe",
+    "description": "Return live help and packaged references for one recipe.",
+    "guardrail_groups": [
+      "cli_evidence",
+      "recipe_evidence"
+    ],
+    "name": "nsys_explain_recipe",
+    "public_label": "recipe help lookup",
+    "requires_report": false,
+    "service_method": "explain_recipe"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Installed recipe name.",
+        "kind": "str",
+        "name": "recipe_name",
+        "required": true
+      },
+      {
+        "default": "",
+        "description": "Optional recipe flags after tool-owned input/output.",
+        "kind": "str",
+        "name": "extra_args",
+        "required": false
+      }
+    ],
+    "category": "recipe",
+    "cli_command": "run-recipe",
+    "description": "Run an installed recipe with tool-owned paths. Recipes can be long-running; prefer deterministic report facts for simple timing, device, or presence questions.",
+    "guardrail_groups": [
+      "report_evidence",
+      "measured_report_evidence",
+      "recipe_evidence",
+      "recipe_execution_evidence"
+    ],
+    "name": "nsys_run_recipe",
+    "public_label": "recipe execution",
+    "requires_report": true,
+    "service_method": "run_recipe"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Recipe output handle returned by nsys_run_recipe.",
+        "kind": "str",
+        "name": "output_handle",
+        "required": true
+      }
+    ],
+    "category": "recipe",
+    "cli_command": "recipe-output-schema",
+    "description": "Inspect CSV/parquet schemas from a previous recipe output handle.",
+    "guardrail_groups": [
+      "recipe_evidence"
+    ],
+    "name": "nsys_recipe_output_schema",
+    "public_label": "recipe output schema inspection",
+    "requires_report": false,
+    "service_method": "recipe_output_schema"
+  },
+  {
+    "adapters": [
+      "cli"
+    ],
+    "args": [
+      {
+        "default": null,
+        "description": "Recipe output handle returned by nsys_run_recipe.",
+        "kind": "str",
+        "name": "output_handle",
+        "required": true
+      },
+      {
+        "default": null,
+        "description": "Bounded read-only SQL query over recipe outputs.",
+        "kind": "str",
+        "name": "sql",
+        "required": true
+      }
+    ],
+    "category": "recipe",
+    "cli_command": "recipe-output-query",
+    "description": "Run bounded read-only SQL against a previous recipe output handle.",
+    "guardrail_groups": [
+      "report_evidence",
+      "measured_report_evidence",
+      "recipe_evidence",
+      "recipe_execution_evidence"
+    ],
+    "name": "nsys_query_recipe_output",
+    "public_label": "recipe output SQL query",
+    "requires_report": false,
+    "service_method": "query_recipe_output"
+  }
+]

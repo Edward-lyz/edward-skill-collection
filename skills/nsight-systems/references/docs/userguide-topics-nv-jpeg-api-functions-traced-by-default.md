@@ -1,0 +1,73 @@
+---
+source_path: UserGuide/topics/nv-jpeg-api-functions-traced-by-default.rst
+title: #### NV JPEG API Functions Traced by Default
+---
+#### NV JPEG API Functions Traced by Default
+
+::
+
+   nvjpegBufferDeviceCreate
+   nvjpegBufferDeviceRetrieve
+   nvjpegBufferPinnedCreate
+   nvjpegBufferPinnedRetrieve
+   nvjpegCreate
+   nvjpegCreateEx
+   nvjpegCreateSimple
+   nvjpegDecode
+   nvjpegDecodeBatched
+   nvjpegDecodeBatchedEx
+   nvjpegDecodeBatchedInitialize
+   nvjpegDecodeBatchedPreAllocate
+   nvjpegDecodeBatchedSupported
+   nvjpegDecodeBatchedSupportedEx
+   nvjpegDecodeJpeg
+   nvjpegDecodeJpegDevice
+   nvjpegDecodeJpegHost
+   nvjpegDecodeJpegTransferToDevice
+   nvjpegDecodeParamsCreate
+   nvjpegDecodeParamsDestroy
+   nvjpegDecodeParamsSetAllowCMYK
+   nvjpegDecodeParamsSetOutputFormat
+   nvjpegDecodeParamsSetROI
+   nvjpegDecodeParamsSetScaleFactor
+   nvjpegDecoderCreate
+   nvjpegDecoderDestroy
+   nvjpegDecoderJpegSupported
+   nvjpegDecoderStateCreate
+   nvjpegDestroy
+   nvjpegEncodeGetBufferSize
+   nvjpegEncodeImage
+   nvjpegEncodeRetrieveBitstream
+   nvjpegEncodeRetrieveBitstreamDevice
+   nvjpegEncoderParamsCopyHuffmanTables
+   nvjpegEncoderParamsCopyMetadata
+   nvjpegEncoderParamsCopyQuantizationTables
+   nvjpegEncoderParamsCreate
+   nvjpegEncoderParamsDestroy
+   nvjpegEncoderParamsSetEncoding
+   nvjpegEncoderParamsSetOptimizedHuffman
+   nvjpegEncoderParamsSetQuality
+   nvjpegEncoderParamsSetSamplingFactors
+   nvjpegEncoderStateCreate
+   nvjpegEncoderStateDestroy
+   nvjpegEncodeYUV,(nvjpegHandle_t handle
+   nvjpegGetCudartProperty
+   nvjpegGetDeviceMemoryPadding
+   nvjpegGetImageInfo
+   nvjpegGetPinnedMemoryPadding
+   nvjpegGetProperty
+   nvjpegJpegStateCreate
+   nvjpegJpegStateDestroy
+   nvjpegJpegStreamCreate
+   nvjpegJpegStreamDestroy
+   nvjpegJpegStreamGetChromaSubsampling
+   nvjpegJpegStreamGetComponentDimensions
+   nvjpegJpegStreamGetComponentsNum
+   nvjpegJpegStreamGetFrameDimensions
+   nvjpegJpegStreamGetJpegEncoding
+   nvjpegJpegStreamParse
+   nvjpegJpegStreamParseHeader
+   nvjpegSetDeviceMemoryPadding
+   nvjpegSetPinnedMemoryPadding
+   nvjpegStateAttachDeviceBuffer
+   nvjpegStateAttachPinnedBuffer

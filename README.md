@@ -37,7 +37,9 @@ skill-name/
 | `cuda` | CUDA kernel development, profiling, debugging, and review. |
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
 | `op-profiler` | Remote operator profiling workflow. |
+| `nsight-systems` | Nsight Systems profiling, report analysis, and recipe workflows. |
 | `python-dev-standards` | Python development and review standards. |
+| `aiqa-test-report` | Query AIQA standard test records and return report/review links. |
 | `teach` | Stateful workspace-based teaching sessions. |
 | `gorden-ppt-skill` | AI-friendly Chinese PPT builder with 17 templates, text-only editing via python-pptx. |
 
