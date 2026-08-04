@@ -38,6 +38,7 @@ skill-name/
 | `dev-machine-remote` | Remote development-machine command and file-sync workflow. |
 | `op-profiler` | Remote operator profiling workflow. |
 | `nsight-systems` | Nsight Systems profiling, report analysis, and recipe workflows. |
+| `nsys-simulator-operator-alignment` | Export stable Nsys patterns and compare every kernel against simulator timings in KU-style CSV/XLSX reports. |
 | `python-dev-standards` | Python development and review standards. |
 | `aiqa-test-report` | Query AIQA standard test records and return report/review links. |
 | `teach` | Stateful workspace-based teaching sessions. |
