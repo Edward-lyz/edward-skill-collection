@@ -43,6 +43,7 @@ skill-name/
 | `aiqa-test-report` | Query AIQA standard test records and return report/review links. |
 | `teach` | Stateful workspace-based teaching sessions. |
 | `gorden-ppt-skill` | AI-friendly Chinese PPT builder with 17 templates, text-only editing via python-pptx. |
+| `tech-doc-style-chinese` | Chinese technical and UI copy writing style guide with a zero-dependency linter. |
 
 ## Upstream imports
 
