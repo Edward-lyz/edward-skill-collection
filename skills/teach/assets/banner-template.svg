@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" width="1000" height="560" role="img" aria-label="Replace this aria-label with the mechanism thesis.">
+<style>
+svg {
+  --paper: #ffffff;
+  --ink: #22211e;
+  --cap: #8f8b83;
+  --st: #bd9358;
+  --st-bg: #f4ecdc;
+  --st-ink: #6d5222;
+  --a: #4c5fa8;
+  --a-bg: #e5e9f7;
+  --b: #2e8c80;
+  --b-bg: #dcefeb;
+  --c: #a05a92;
+  --fwd: #7f9c92;
+  --fwd-ink: #56766b;
+  --band: rgba(34, 33, 30, 0.03);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  svg {
+    --paper: #16171a;
+    --ink: #e8e7e3;
+    --cap: #9a978f;
+    --st: #d3ad67;
+    --st-bg: #34301f;
+    --st-ink: #e9d5a4;
+    --a: #97a7ef;
+    --a-bg: #252c4e;
+    --b: #66c6b6;
+    --b-bg: #123230;
+    --c: #d59cc6;
+    --fwd: #8fb2a6;
+    --fwd-ink: #a9cfc2;
+    --band: rgba(232, 231, 227, 0.04);
+  }
+}
+.bg { fill: var(--paper); }
+.band { fill: var(--band); }
+.rowlab { fill: var(--ink); font-size: 13px; font-weight: 650; }
+.rowsub { fill: var(--cap); font-size: 10.5px; }
+.cell { fill: var(--st-bg); stroke: var(--st); stroke-width: 1.6; }
+.cell-a { fill: var(--a-bg); stroke: var(--a); stroke-width: 1.6; }
+.cell-b { fill: var(--b-bg); stroke: var(--b); stroke-width: 1.6; }
+.cell-fwd { fill: var(--paper); stroke: var(--fwd); stroke-width: 1.5; }
+.t-cell { fill: var(--st-ink); font-size: 12px; font-weight: 650; text-anchor: middle; }
+.t-a { fill: var(--a); font-size: 11.5px; font-weight: 700; text-anchor: middle; }
+.t-b { fill: var(--b); font-size: 11.5px; font-weight: 700; text-anchor: middle; }
+.t-fwd { fill: var(--fwd-ink); font-size: 11px; font-weight: 600; text-anchor: middle; }
+.sub { fill: var(--cap); font-size: 10.5px; text-anchor: middle; }
+.arrow-a { stroke: var(--a); stroke-width: 2.1; fill: none; }
+.arrow-b { stroke: var(--b); stroke-width: 2.1; fill: none; }
+.arrow-c { stroke: var(--c); stroke-width: 2.1; fill: none; stroke-dasharray: 6 4; }
+.stream { stroke: var(--fwd); stroke-width: 1.3; opacity: 0.65; }
+.legend-line { stroke: var(--cap); stroke-width: 1.6; }
+.legend-dash { stroke: var(--cap); stroke-width: 1.6; stroke-dasharray: 5 3; }
+.legend { fill: var(--cap); font-size: 10.5px; }
+.caption { fill: var(--cap); font-size: 11.5px; font-style: italic; text-anchor: middle; }
+.phase { font-size: 12px; font-weight: 700; text-anchor: middle; }
+</style>
+<defs>
+  <marker id="hA" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--a)"/></marker>
+  <marker id="hB" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--b)"/></marker>
+  <marker id="hC" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--c)"/></marker>
+  <marker id="hL" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="var(--cap)"/></marker>
+</defs>
+
+<rect class="bg" x="0" y="0" width="1000" height="560"/>
+
+<!-- Lane bands: roles as rows, time as x -->
+<rect class="band" x="150" y="56" width="800" height="96" rx="10"/>
+<rect class="band" x="150" y="168" width="800" height="96" rx="10"/>
+<rect class="band" x="150" y="280" width="800" height="96" rx="10"/>
+
+<text class="rowlab" x="24" y="92">role A</text>
+<text class="rowsub" x="24" y="110">shared / frozen</text>
+<text class="rowlab" x="24" y="204">role B</text>
+<text class="rowsub" x="24" y="222">private / live</text>
+<text class="rowlab" x="24" y="316">stream</text>
+<text class="rowsub" x="24" y="334">serial steps</text>
+
+<!-- Example nodes — replace with the lesson mechanism -->
+<rect class="cell" x="210" y="78" width="120" height="52" rx="8"/>
+<text class="t-cell" x="270" y="100">slot</text>
+<text class="sub" x="270" y="118">durable state</text>
+
+<rect class="cell-a" x="420" y="190" width="140" height="52" rx="8"/>
+<text class="t-a" x="490" y="212">working</text>
+<text class="sub" x="490" y="230">read · write</text>
+
+<rect class="cell-fwd" x="220" y="308" width="90" height="40" rx="8"/>
+<text class="t-fwd" x="265" y="333">step</text>
+<rect class="cell-fwd" x="340" y="308" width="90" height="40" rx="8"/>
+<text class="t-fwd" x="385" y="333">step</text>
+<rect class="cell-fwd" x="460" y="308" width="90" height="40" rx="8"/>
+<text class="t-fwd" x="505" y="333">step</text>
+<line class="stream" x1="200" y1="328" x2="780" y2="328"/>
+
+<!-- Example mechanism arrows -->
+<path class="arrow-a" d="M270 130 V170 H490 V190" marker-end="url(#hA)"/>
+<path class="arrow-b" d="M385 308 V250 H490 V242" marker-end="url(#hB)"/>
+<path class="arrow-c" d="M560 216 H700" marker-end="url(#hC)"/>
+
+<text class="phase" x="360" y="160" fill="var(--a)">① copy</text>
+<text class="phase" x="430" y="270" fill="var(--b)">② snapshot</text>
+<text class="phase" x="710" y="206" fill="var(--c)">③ index only</text>
+
+<!-- Legend -->
+<line class="legend-line" x1="180" y1="430" x2="210" y2="430" marker-end="url(#hL)"/>
+<text class="legend" x="220" y="434">state copy</text>
+<line class="legend-dash" x1="320" y1="430" x2="350" y2="430" marker-end="url(#hL)"/>
+<text class="legend" x="360" y="434">index only</text>
+<rect class="cell" x="460" y="420" width="26" height="14" rx="4"/>
+<text class="legend" x="494" y="434">durable slot</text>
+<rect class="cell-a" x="600" y="420" width="26" height="14" rx="4"/>
+<text class="legend" x="634" y="434">live buffer</text>
+
+<!-- Invariant -->
+<text class="caption" x="500" y="500">Replace this sentence with the one invariant the reader should keep after the figure.</text>
+</svg>

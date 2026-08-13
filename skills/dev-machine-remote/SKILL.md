@@ -1,12 +1,6 @@
 ---
 name: dev-machine-remote
-description: 在已配置 remote-exec 的远端开发机上执行命令、同步文件、跑 GPU/NCCL/DeepEP 测试时使用。覆盖 H20/B200/H200/H100 等无 SSH 通路但开放 remote-exec 和 rsync 端口的本地 Mac 到远端开发工作流。
-allowed-tools:
-  - Bash
-  - Read
-  - Edit
-  - Write
-  - AskUserQuestion
+description: 在已配置 remote-exec 的远端开发机上执行命令、同步文件、管理 Kubernetes Pod/FedDeployment，以及运行 GPU/NCCL/DeepEP 测试时使用。覆盖 H20/B200/H200/H100 和 virtualMachine 等无 SSH 通路但开放 remote-exec 与 rsync 端口的本地 Mac 到远端工作流。
 ---
 
 # Dev Machine Remote
@@ -41,7 +35,7 @@ python3 PRIVATE/scripts/rdev.py --json exec --host h20-dev "nvidia-smi"
 - Local workspace: `/Users/liyanzhen/baidu`
 - Machine list source: `~/.ssh/issh_config.yaml`
 - 别名解析：subGroup `name` -> `hosts[0].ip`
-- 默认机器：环境变量 `RDEV_HOST` 或 `b200-dev-2`
+- 默认机器：环境变量 `RDEV_HOST` 或 `b200Dev`
 
 所有机器均已配置：
 - remote-exec: port `8600`
@@ -51,7 +45,7 @@ python3 PRIVATE/scripts/rdev.py --json exec --host h20-dev "nvidia-smi"
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `--host` | `b200-dev-2` | 机器别名或完整 hostname |
+| `--host` | `b200Dev` | 机器别名或完整 hostname |
 | `--exec-port` | 8600 | remote-exec 端口 |
 | `--sync-port` | 8599 | rsync daemon 端口 |
 | `--json` | false | JSON 输出模式 |
@@ -129,3 +123,76 @@ python3 PRIVATE/scripts/rdev.py exec --host <alias> "ps -p <pid> && echo running
 ```bash
 python3 PRIVATE/scripts/rdev.py exec --host <alias> "nvidia-smi -L && nvidia-smi topo -m && python3 --version"
 ```
+
+## Kubernetes 管理
+
+Kubernetes API 不在本机，必须通过 `rdev` 在远端执行。`virtualMachine` 使用以下 kubeconfig：
+
+```bash
+export KUBECONFIG=/home/users/liyanzhen01/PRIVATE/scripts/server.conf
+```
+
+标准连接和检查流程：
+
+```bash
+python3 PRIVATE/scripts/rdev.py health --host virtualMachine
+python3 PRIVATE/scripts/rdev.py exec --host virtualMachine \
+  'export KUBECONFIG=/home/users/liyanzhen01/PRIVATE/scripts/server.conf; kubectl config current-context; kubectl config view --minify -o jsonpath="{..namespace}"; echo'
+```
+
+不要假设本机存在 kubeconfig，也不要静默切换 context、namespace 或远端。跨 namespace 查询需要用户明确提供 namespace，因为当前 service account 通常没有集群级 list 权限。
+
+### 查询、日志和容器执行
+
+```bash
+kubectl get pods -o wide
+kubectl get pod POD -o yaml
+kubectl get feddeployment
+kubectl describe pod POD
+kubectl describe feddeployment FEDDEPLOYMENT
+kubectl logs POD [-c CONTAINER] --tail=200
+kubectl exec POD [-c CONTAINER] -- COMMAND
+```
+
+多容器 Pod 必须明确 `-c CONTAINER`。用户只给 Pod 名时，先读取
+`ernie-ops.baidu-int.com/feddeploy-name` label 或 owner reference，确定对应的 FedDeployment；模糊关键词必须先列出匹配项，不得猜测资源名。
+
+### 启动、缩容和重启
+
+启动或恢复 FedDeployment 使用明确的副本数：
+
+```bash
+kubectl scale feddeployment FEDDEPLOYMENT --replicas=N
+kubectl get feddeployment FEDDEPLOYMENT -o custom-columns=NAME:.metadata.name,REPLICAS:.spec.replicas
+kubectl get pods -l ernie-ops.baidu-int.com/feddeploy-name=FEDDEPLOYMENT -o wide
+```
+
+用户只说启动但未给副本数时，先查询当前 spec/status 并询问目标副本数，禁止默认填 1。重启受 FedDeployment 管理的单个 Pod 可以删除该 Pod，让控制器重建：
+
+```bash
+kubectl delete pod POD
+kubectl get pods -l ernie-ops.baidu-int.com/feddeploy-name=FEDDEPLOYMENT -w
+```
+
+不要直接创建受控制器管理的 Pod；从零创建必须使用用户提供的 manifest 或既有部署流程。
+
+### 删除 FedDeployment
+
+删除是破坏性操作。用户明确要求后，先输出 namespace、资源类型和精确名称，再按以下顺序执行：
+
+```bash
+kubectl scale feddeployment FEDDEPLOYMENT --replicas=0
+kubectl get feddeployment FEDDEPLOYMENT -o custom-columns=NAME:.metadata.name,REPLICAS:.spec.replicas
+kubectl delete feddeployment FEDDEPLOYMENT
+kubectl get feddeployment FEDDEPLOYMENT --ignore-not-found
+kubectl get pods -l ernie-ops.baidu-int.com/feddeploy-name=FEDDEPLOYMENT
+```
+
+Pod 处于 `Terminating` 是异步删除的正常中间状态，应如实报告。除非用户明确要求并接受风险，不得使用 `--force --grace-period=0`。
+
+### 执行和验证规则
+
+- 只读操作直接执行；修改副本数、删除 Pod、删除 FedDeployment 属于变更操作，必须依据用户明确意图。
+- 变更前先做最小范围查询，批量操作只使用已明确列出的精确名称。
+- 每次变更后重新 `get` 验证副本数、资源是否存在和 Pod 状态。
+- 命令失败必须报告原始错误并停止，不得返回默认值或自动切换实现。

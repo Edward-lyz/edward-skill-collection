@@ -5,157 +5,249 @@ disable-model-invocation: true
 argument-hint: "What would you like to learn about?"
 ---
 
-The user has asked you to teach them something. This is a stateful request - they intend to learn the topic over multiple sessions.
+The user has asked you to teach them something. This is a stateful request across sessions, but the **only required deliverable is a core Markdown lesson**. Do not invent a course bureaucracy.
 
-## Teaching Workspace
+## Default workspace
 
-Treat the current directory as a teaching workspace. The state of their learning is captured in this directory in several files:
+Prefer an existing teaching workspace under `/Users/liyanzhen/baidu/PRIVATE/teach/<topic-slug>/`.
 
-- `MISSION.md`: A document capturing the _reason_ the user is interested in the topic. This should be used to ground all teaching. Use the format in [MISSION-FORMAT.md](./MISSION-FORMAT.md).
-- `./reference/*.html`: A directory of reference materials. These are the compressed learnings from the lessons - cheat sheets, reference algorithms, syntax, yoga poses, glossaries. They are the raw units of learning. They should be beautiful documents which print out well, and are designed for quick reference.
-- `RESOURCES.md`: A list of resources which can be explored to ground your teaching in contextual knowledge, or to acquire knowledge and wisdom. Use the format in [RESOURCES-FORMAT.md](./RESOURCES-FORMAT.md).
-- `./learning-records/*.md`: A directory of learning records, which capture what the user has learned. These are loosely equivalent to architectural decision records in software development - they capture non-obvious lessons and key insights that may need to be revised later, or drive future sessions. These should be used to calculate the zone of proximal development. They are titled `0001-<dash-case-name>.md`, where the number increments each time. Use the format in [LEARNING-RECORD-FORMAT.md](./LEARNING-RECORD-FORMAT.md).
-- `./lessons/*.html`: A directory of lessons. A **lesson** is a single, self-contained HTML output that teaches one tightly-scoped thing tied to the mission. This is the primary unit of teaching in this workspace.
-- `./assets/*`: Reusable **components** shared across lessons. See [Assets](#assets).
-- `NOTES.md`: A scratchpad for you to jot down user preferences, or working notes.
+If the topic is new:
 
-## Philosophy
+1. Create only `/Users/liyanzhen/baidu/PRIVATE/teach/<topic-slug>/lessons/`.
+2. Put the lesson at `lessons/0001-<dash-case-name>.md`.
+3. Update `/Users/liyanzhen/baidu/PRIVATE/teach/README.md` with one row for the new topic.
 
-To learn at a deep level, the user needs three things:
+Do **not** create any of these by default:
 
-- **Knowledge**, captured from high-quality, high-trust resources
-- **Skills**, acquired through highly-relevant interactive lessons devised by you, based on the knowledge
-- **Wisdom**, which comes from interacting with other learners and practitioners
+- `MISSION.md`
+- `NOTES.md`
+- `RESOURCES.md`
+- `learning-records/`
+- `reference/`
+- `assets/` beyond the current lesson banner SVG
+- `build_standalone.py`
+- `dist/`
+- HTML lessons
+- quiz widgets / shared CSS / standalone builders
 
-Before the `RESOURCES.md` is well-populated, your focus should be to find high-quality resources which will help the user acquire knowledge. Never trust your parametric knowledge.
+If the user already has an old HTML-heavy workspace, keep reading it for context, but write **new** lessons as Markdown unless they explicitly ask for HTML.
 
-Some topics may require more skills than knowledge. Learning more about theoretical physics might be more knowledge-based. For yoga, more skills-based.
+## What the user cares about
 
-### Fluency vs Storage Strength
+1. The **core lesson** in Markdown.
+2. A **banner diagram at the top** in the SGLang / LMSYS algorithm-figure style.
+3. Enough depth to understand and reuse the idea. No ceremony files.
 
-You should be careful to split between two types of learning:
+Everything else is optional scaffolding. Create it only when it unblocks teaching.
 
-- **Fluency strength**: in-the-moment retrieval of knowledge
-- **Storage strength**: long-term retention of knowledge
+## Lesson unit
 
-Fluency can give the user an illusory sense of mastery, but storage strength is the real goal. Try to design lessons which build long-term retention by desirable difficulty:
+A lesson is one Markdown file:
 
-- Using retrieval practice (recall from memory)
-- Spacing (distributing practice over time)
-- Interleaving (mixing up different but related topics in practice - for skills practice only)
+```text
+lessons/000N-<dash-case-name>.md
+```
 
-## Lessons
+Numbering: scan existing `lessons/*.md` and `lessons/*.html`, take the highest number, increment by one. Prefer `.md` for new work.
 
-A lesson is the main thing you produce — the unit in which knowledge and skills reach the user. Each lesson is one self-contained HTML file, saved to `./lessons/` and titled `0001-<dash-case-name>.html` where the number increments each time.
+### Required structure
 
-A lesson should be **beautiful** — clean, readable typography and layout — since the user will return to these later to review. Think Tufte.
+```md
+# {Title}
 
-The lesson should be short, and completable very quickly. Learners' working memory is very small, and we need to stay within it. But each lesson should give the user a single tangible win that they can build on. It should be directly tied to the mission, and should be in the user's zone of proximal development.
+![Alt text: the mechanism thesis in one line.](./assets/{slug}-banner.svg)
 
-If possible, open the lesson file for the user by running a CLI command.
+*{Italic caption: what to notice in the figure.}*
 
-### Lesson Structure
+{One sentence: what the learner can do after this lesson.}
 
-Build the shortest lesson that gives the learner one tangible win. Every lesson must:
+## 背景
+...
 
-1. Start with `<h1>` followed by one sentence stating what the learner will be able to do.
-2. Teach only the knowledge required for that outcome.
-3. End with active practice and immediate feedback.
+## 核心原理
+...
 
-Add sections only when they advance the outcome:
+## 公式推导   # only if a real derivation exists
+...
 
-- **Visual anchor** — Use a figure, table, code sample, worked example, or interactive when it makes a relationship easier to understand. Use animation only when motion, time, or a state transition is part of the concept.
-- **背景** — Explain the prior problem when it changes how the learner understands the solution.
-- **核心原理及依据** — Support technical claims with the necessary mathematical or engineering reasoning.
-- **公式推导** — Include a step-by-step derivation only when a core formula exists and deriving it serves the mission. Never invent mathematical framing for a non-mathematical topic.
-- **小结** — Add a concise retrieval prompt or comparison when it improves retention; do not restate the lesson mechanically.
-- **Quiz or task** — Choose the smallest exercise that tests the target skill. Use 2–4 multiple-choice questions only when recognition is the right form of practice.
+## 小结
+...
+```
 
-### Lesson Formatting Rules
+Rules:
 
-- **No header/footer chrome**: no `lesson-meta` div, no `lesson-nav` div, no `followup` div. The lesson is a clean document starting with `<h1>` and ending after the final practice and feedback.
-- **No inter-lesson navigation links**: lessons are designed to be standalone publishable documents.
-- **Math rendering**: when the lesson contains mathematics, use KaTeX with `\( \)` / `\[ \]` delimiters.
-- **Animations**: when animation is necessary, use pure JS/CSS (no SVG, no Mermaid), position elements with `%` for responsive layout, and provide explicit step controls. Do not add a hero animation for decoration.
-- **Visual restraint**: do not add cards, badges, callouts, gradients, glows, or motion merely to make the page feel designed. Every visual element must communicate structure, state, evidence, or interaction.
-- **Build script**: maintain a `build_standalone.py` (or equivalent) that produces a `./dist/` directory of single-file HTML lessons with all CSS/JS/animations inlined (only KaTeX CDN remains external).
-- **Quiz format**: when using multiple-choice questions, use `<div class="quiz" data-answer="N">` with radio inputs and `.feedback.correct` / `.feedback.incorrect` divs. Include `quiz.js` inline in standalone builds.
+- Start with `# Title`, then the banner figure, then an italic caption, then one outcome sentence.
+- The banner is mandatory. No placeholder, no decorative art, no AI bitmap.
+- Teach only what is needed for the outcome.
+- Prefer tables, short code blocks, numbered derivations, and extra body diagrams only when they earn space.
+- Cite high-trust sources inline when making non-obvious technical claims.
+- Keep the lesson short enough to finish in one sitting, but do not split artificially if the user asked for one dense note.
+- End with a short retrieval check: 2–4 questions, or one concrete task. Answers can sit under a section titled `参考答案`.
 
-## Assets
+Optional sections only when they earn their place:
 
-Store components shared by multiple lessons in `./assets/`: stylesheets, quiz widgets, simulators, and diagram helpers.
+- 术语表
+- 一图流 / 数据流
+- 工程依据
+- 与相邻方案对比
+- 练习
 
-Before authoring a lesson, read `./assets/` and reuse an existing component when its semantics fit. Do not distort content to fit a component. Keep lesson-specific HTML, CSS, or JS local until the same semantic pattern recurs or one shared implementation is required for correctness; do not extract components for imagined future duplication.
+### Forbidden by default
 
-A shared stylesheet is the first component every workspace earns: every lesson links it, so the lessons look like one consistent course rather than a pile of one-offs. Add other components only after the need is demonstrated, and remove components that no lesson uses.
+- `imagegen` / AI raster banners / stock photos
+- Generic Mermaid flowchart as the opening banner for a multi-role algorithm
+- HTML lesson chrome, quiz.js, lesson-nav, followup blocks
+- Cards, badges, gradient callouts, fake stats
+- Multi-file "course systems" for a single note
+- Rebuilding `build_standalone.py` / `dist/`
 
-## The Mission
+## Banner figure — SGLang pattern
 
-Every lesson should be tied into the mission - the reason that the user is interested in learning about the topic.
+Every lesson opens with a wide algorithm figure in the style of the SGLang / LMSYS Kimi K3 day-0 post figures. The local reference translation is:
 
-If the user is unclear about the mission, or the `MISSION.md` is not populated, your first job should be to question the user on why they want to learn this.
+`/Users/liyanzhen/baidu/PRIVATE/teach/kimi-k3-day0-translation/translation-and-commentary.md`
 
-Failing to understand the mission will mean knowledge acquisition is not grounded in real-world goals. Lessons will feel too abstract. You will have no way of judging what the user should do next.
+Full visual language: [references/sglang-figure-pattern.md](./references/sglang-figure-pattern.md)
 
-Missions may change as the user develops more skills and knowledge. This is normal - make sure to update the `MISSION.md` and add a learning record to capture the change. Confirm with the user before changing the mission.
+Starter shell: [assets/banner-template.svg](./assets/banner-template.svg)
 
-## Zone Of Proximal Development
+### Non-negotiables
 
-Each lesson, the user should always feel as if they are being challenged 'just enough'.
+1. **Hand-authored SVG** under `lessons/assets/<lesson-slug>-banner.svg`
+2. **Mechanism first** — the figure proves one idea: who owns what, what moves, what stays, what is index-only
+3. **Multi-lane / overlay / rank-dataflow composition**, not a blob of rounded rectangles
+4. **Semantic colors** for mechanisms, stable inside the figure
+5. **Solid vs dashed arrows** mean different things and are defined in a legend
+6. **Numbered phases** `① ② ③` when there are multiple moves
+7. **Bottom italic invariant** stating the sentence the reader should keep
+8. **Markdown alt + italic caption** under the image
+9. **No text occlusion** — labels never cross strokes, arrows, borders, braces, or other labels
+10. **Precise frames** — dashed groups / braces / keep-groups tightly bound only the claimed nodes
 
-The user may specify an exact thing they want to learn. If they don't, figure out their zone of proximal development by:
+### Default composition choices
 
-- Reading their `learning-records`
-- Figuring out the right thing to teach them based on their mission
-- Teach the most relevant thing that fits in their zone of proximal development
+| Topic shape | Banner pattern |
+| --- | --- |
+| State moves over time | Multi-lane space-time |
+| Sparse markers on a tree / pool / pipeline | Structure overlay |
+| TP / PP / DCP / draft-verify | Rank or stage dataflow |
+| Layout or policy change | Before → after panels |
+| Optimization stack | Ladder / waterfall, usually as a body figure |
 
-## Knowledge
+### Visual system, short form
 
-Lessons should be designed around a skill the user is going to learn. The knowledge in the lesson should be only what's required to acquire that skill. You teach the knowledge first, then get the user to practice the skills via an interactive feedback loop.
+- Paper `#ffffff`, ink `#22211e`, caption `#8f8b83`
+- State/slot sand, copy/COW blue, snapshot teal, donate/index purple, stream sage
+- Font: Inter / system UI sans
+- Frame about `1000×560`
+- Pure vectors only; no embedded PNG
+- 3–9 primary nodes, 2–4 mechanisms, one legend, one invariant
 
-Knowledge should first be gathered from trusted resources. Use `RESOURCES.md` to keep track of them. Lessons should be littered with citations - links to external resources to back up any claim made. This increases the trustworthiness of the lesson.
+### How to produce the banner
 
-For acquiring knowledge, difficulty is the enemy. It eats working memory you need for understanding.
+Universal pipeline (details in [references/sglang-figure-pattern.md](./references/sglang-figure-pattern.md)):
 
-## Skills
+1. **Refuse the wrong medium** — no imagegen, no Mermaid banner, no embedded bitmaps.
+2. **Write the visual thesis card first** — thesis, roles, 2–4 moves, invariant, pattern.
+3. **Choose one composition pattern** from the table above. Prefer multi-lane space-time when the idea is *when* state moves.
+4. **Copy** `assets/banner-template.svg` → `lessons/assets/<slug>-banner.svg`.
+5. **Lay out skeleton before labels** — bands, left roles, x-axis time/stages, 3–9 nodes, arrows, phases, legend, invariant, aria-label.
+6. **Apply LMSYS density rules** — left-to-right serial rhythm, sparse phase groups, solid/dashed arrow grammar, mechanism colors only, intentional whitespace, one bottom invariant.
+7. **Enforce hard geometry** — no text occlusion; group boxes / braces / keep-groups tightly frame exactly the claimed nodes (≈8–12 px pad); arrow docks land on node edges.
+8. **Self-check against** `/tmp/sglang-figs/fig1-state-flow.svg` or `fig2-radix-branching.svg` when available, including occlusion and frame-precision checks.
+9. **Embed under H1** with alt + italic caption, then write/finalize prose so labels stay synchronized.
 
-If knowledge is all about acquisition, skills are about durability and flexibility. Make the knowledge stick.
+Mermaid may appear later in the body for a tiny checklist flow. It is not the banner standard.
 
-For skill acquisition, difficulty is the tool. Effortful retrieval is what builds storage strength. Skills should be taught through interactive lessons. There are several tools at your disposal:
+Do **not** use AI image generation for banners.
 
-- Interactive lessons, using quizzes and light in-browser tasks
-- Lessons which guide the user through a list of real-world steps to take (for instance, yoga poses)
+## Teaching loop
 
-Each of these should be based on a **feedback loop**, where the user receives feedback on their performance. This feedback loop should be as tight as possible, giving feedback immediately - and ideally automatically.
+Do the smallest useful loop:
 
-For quizzes, each answer should be exactly the same number of words (and characters, if possible). Don't give the user any clues about the answer through formatting.
+1. **Clarify the target.** If the user already named the topic, do not interview them for a mission document. Infer the practical outcome and start teaching.
+2. **Ground the content.** Prefer primary sources, papers, source code, and the user's own repos over parametric memory. When a claim is load-bearing, open the source.
+3. **Design the banner figure first** in the SGLang pattern.
+4. **Write one Markdown lesson** around that figure.
+5. **Open or point to the file.** Give the path. Do not publish, build, or create a site page unless asked.
+6. **Stop.** Wait for questions, corrections, or "next lesson".
 
-## Acquiring Wisdom
+If the user wants a multi-lesson path, keep a short ordered list in chat or in a single `lessons/README.md`. Do not create a parallel tracking system.
 
-Wisdom comes from true real-world interaction - testing your skills outside the learning environment.
+## Optional scaffolding
 
-When the user asks a question that appears to require wisdom, your default posture should be to attempt to answer - but to ultimately delegate to a **community**.
+Create these only when a concrete need appears:
 
-A community is a place (online or offline) where the user can test their skills in the real world. This might be a forum, a subreddit, a real-world class (budget permitting) or a local interest group.
+| File | Create when |
+| --- | --- |
+| `NOTES.md` | User states durable teaching preferences worth reusing next session |
+| `RESOURCES.md` | There are multiple high-trust sources that will be reused across lessons |
+| `MISSION.md` | The goal is ambiguous and wrong scope would waste work |
+| `learning-records/*.md` | User demonstrates a non-obvious understanding or prior knowledge that should change future lessons |
+| `reference/*.md` | A cheatsheet will be revisited more than the lesson itself |
+| HTML / interactive assets | User explicitly wants an interactive page or site publish |
 
-You should attempt to find high-reputation communities the user can join. If the user expresses a preference that they don't want to join a community, respect it.
+Formats for the rare optional files live in:
 
-## Reference Documents
+- [MISSION-FORMAT.md](./MISSION-FORMAT.md)
+- [RESOURCES-FORMAT.md](./RESOURCES-FORMAT.md)
+- [LEARNING-RECORD-FORMAT.md](./LEARNING-RECORD-FORMAT.md)
 
-While creating lessons, you should also create reference documents. Lessons can reference these documents - they are useful for tracking raw units of knowledge useful across lessons.
+## Pedagogy, without ceremony
 
-Lessons will rarely be revisited later - reference documents will be. They should be the compressed essence of the lesson, in a format designed for quick reference.
+Still optimize for long-term retention, not a tour of files:
 
-Some learning topics lend themselves to reference:
+- One tangible win per lesson
+- Stay in the zone of proximal development
+- Prefer retrieval practice over passive summary
+- Use desirable difficulty for skills; remove unnecessary difficulty from pure knowledge acquisition
+- Distinguish facts, derivations, and your engineering inferences
 
-- Syntax and code snippets for programming
-- Algorithms and flowcharts for processes
-- Yoga poses and sequences for yoga
-- Exercises and routines for fitness
-- Glossaries for any topic with its own nomenclature
+### Fluency vs storage strength
 
-Glossaries, in particular, are an essential reference. Once one is created, it should be adhered to in every lesson.
+- Fluency: short-term retrieval while the note is open
+- Storage strength: still usable next week
 
-## `NOTES.md`
+Design the ending check for storage strength.
 
-The user will sometimes express preferences of how they want to be taught, or things you should keep in mind. This is the place to record those preferences, so you can refer back to them when designing lessons or working with the user.
+## Knowledge and citations
+
+Never trust parametric memory for niche systems, paper results, or repo-specific behavior. Open the code or paper first.
+
+When the workspace has a `RESOURCES.md`, prefer those sources. When it does not, gather only the sources needed for this lesson and cite them inline. Do not create `RESOURCES.md` just to host three links.
+
+## Skills practice
+
+If the topic is skill-heavy, the Markdown lesson should still end with practice:
+
+- a derivation to redo from memory
+- a command sequence to run
+- a small code-reading task in the user's repo
+- 2–4 multiple-choice questions with equally long options
+
+Interactive HTML quizzes are optional, not the default.
+
+## Wisdom
+
+If the user needs practitioner judgment rather than a settled fact, answer carefully, mark uncertainty, and point to a high-signal community only when useful. Respect opt-outs.
+
+## Session notes
+
+If the user says how they want to learn, record it in `NOTES.md` only after the preference is clearly durable. Examples worth recording:
+
+- step-by-step formula derivations, no skipped algebra
+- terminology table before the first dense section
+- Chinese prose, English terms
+- SGLang-style SVG banners; no AI bitmaps
+
+## Completion criteria
+
+A teaching turn is done when:
+
+1. There is a new or updated `lessons/000N-*.md`
+2. The file starts with a hand-authored SGLang-style SVG banner of the core mechanism
+3. The figure has alt text, italic caption, legend semantics, and an invariant
+4. The lesson is grounded enough to trust
+5. The user can open one Markdown file and study without touching scaffolding
+
+If you produced extra files the user did not need, delete them before finishing.
