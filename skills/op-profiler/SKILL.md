@@ -10,7 +10,7 @@ allowed-tools:
 
 # Op Profiler - 远端算子性能采集
 
-本 skill 封装了在远端开发机（B200-dev-2）上进行 aiak_ds_tool 算子性能采集的完整工作流。
+本 skill 封装了在远端开发机（b200Dev）上进行 aiak_ds_tool 算子性能采集的完整工作流。
 
 ## 依赖
 
@@ -38,31 +38,31 @@ allowed-tools:
 全量覆盖同步 `aiak_ds_tool` 目录（含 app.py 和所有配置文件）：
 
 ```bash
-python3 PRIVATE/scripts/rdev.py sync push --host b200-dev-2 --dest /home/users/liyanzhen01/aiak_ds_tool --src /Users/liyanzhen/baidu/BAIDU_REPO/aiak_ds_tool
+python3 PRIVATE/scripts/rdev.py sync push --host b200Dev --dest /home/users/liyanzhen01/aiak_ds_tool --src /Users/liyanzhen/baidu/BAIDU_REPO/aiak_ds_tool
 ```
 
 同步 profiler 配置文件目录（`profiler_configs/`）：
 
 ```bash
-python3 PRIVATE/scripts/rdev.py sync push --host b200-dev-2 --dest /home/users/liyanzhen01/aiak_ds_tool/profiler_configs --src /Users/liyanzhen/baidu/BAIDU_REPO/aiak_ds_tool/profiler_configs
+python3 PRIVATE/scripts/rdev.py sync push --host b200Dev --dest /home/users/liyanzhen01/aiak_ds_tool/profiler_configs --src /Users/liyanzhen/baidu/BAIDU_REPO/aiak_ds_tool/profiler_configs
 ```
 
 同步 prefill 配置文件（`deepseek_v4/prefill.yaml`）：
 
 ```bash
-python3 PRIVATE/scripts/rdev.py sync push --host b200-dev-2 --dest /home/users/liyanzhen01/aiak_ds_tool/aiak_infer_tools/extensions/apps/op_profiler/configs/deepseek_v4 --src /Users/liyanzhen/baidu/BAIDU_REPO/aiak_ds_tool/aiak_infer_tools/extensions/apps/op_profiler/configs/deepseek_v4
+python3 PRIVATE/scripts/rdev.py sync push --host b200Dev --dest /home/users/liyanzhen01/aiak_ds_tool/aiak_infer_tools/extensions/apps/op_profiler/configs/deepseek_v4 --src /Users/liyanzhen/baidu/BAIDU_REPO/aiak_ds_tool/aiak_infer_tools/extensions/apps/op_profiler/configs/deepseek_v4
 ```
 
 ### 2. 管理远端进程
 
 **停止已有 profiler**：
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'docker exec grab sh -c "pkill -f profiler 2>/dev/null"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'docker exec grab sh -c "pkill -f profiler 2>/dev/null"'
 ```
 
 **停止 grabGPU**：
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'docker exec grab sh -c "pkill -f \"./gg\" 2>/dev/null"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'docker exec grab sh -c "pkill -f \"./gg\" 2>/dev/null"'
 ```
 
 ### 3. 启动 grabGPU 占卡（可选）
@@ -70,14 +70,14 @@ python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'docker exec grab sh -c "
 8 卡各占 10GB，利用率 10%，持续 24 小时：
 
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'nohup docker exec grab sh -c "cd /home/users/liyanzhen01/grabGPU && ./gg 10 24 -1 0.1" > /home/users/liyanzhen01/logs/gpu_keeper.log 2>&1 &'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'nohup docker exec grab sh -c "cd /home/users/liyanzhen01/grabGPU && ./gg 10 24 -1 0.1" > /home/users/liyanzhen01/logs/gpu_keeper.log 2>&1 &'
 ```
 
 ### 4. 管理远端 DB 数据
 
 **清理旧 DB（全新采集）**：
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'docker exec grab sh -lc "rm -rf /home/users/liyanzhen01/aiak_ds_tool/data/b200/*.db /home/users/liyanzhen01/aiak_ds_tool/data/.tmp 2>/dev/null"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'docker exec grab sh -lc "rm -rf /home/users/liyanzhen01/aiak_ds_tool/data/b200/*.db /home/users/liyanzhen01/aiak_ds_tool/data/.tmp 2>/dev/null"'
 ```
 
 **保留旧 DB（增量采集）**：默认不做任何操作，profiler 自动增量跳过已有 shape。
@@ -86,18 +86,18 @@ python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'docker exec grab sh -lc 
 
 **使用 prefill.yaml**（完整批量采集）：
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'LOGFILE="/home/users/liyanzhen01/logs/op_profiler_$(date +%Y%m%d_%H%M%S).log" && docker exec -d grab sh -lc "cd /home/users/liyanzhen01/aiak_ds_tool && python -m aiak_infer_tools profiler --config-bundle aiak_infer_tools/extensions/apps/op_profiler/configs/deepseek_v4/prefill.yaml > \"$LOGFILE\" 2>&1" && echo "LOG=$LOGFILE"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'LOGFILE="/home/users/liyanzhen01/logs/op_profiler_$(date +%Y%m%d_%H%M%S).log" && docker exec -d grab sh -lc "cd /home/users/liyanzhen01/aiak_ds_tool && python -m aiak_infer_tools profiler --config-bundle aiak_infer_tools/extensions/apps/op_profiler/configs/deepseek_v4/prefill.yaml > \"$LOGFILE\" 2>&1" && echo "LOG=$LOGFILE"'
 ```
 
 **使用 single/batch 配置文件**（profiler_configs 目录下的）：
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'LOGFILE="/home/users/liyanzhen01/logs/op_profiler_$(date +%Y%m%d_%H%M%S).log" && docker exec -d grab sh -lc "cd /home/users/liyanzhen01/aiak_ds_tool && python -m aiak_infer_tools profiler --config-bundle profiler_configs/<CONFIG_FILE> > \"$LOGFILE\" 2>&1" && echo "LOG=$LOGFILE"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'LOGFILE="/home/users/liyanzhen01/logs/op_profiler_$(date +%Y%m%d_%H%M%S).log" && docker exec -d grab sh -lc "cd /home/users/liyanzhen01/aiak_ds_tool && python -m aiak_infer_tools profiler --config-bundle profiler_configs/<CONFIG_FILE> > \"$LOGFILE\" 2>&1" && echo "LOG=$LOGFILE"'
 ```
 
 如果目标 `run_cfg.yaml:data_dir` 是绝对路径，例如 `/home/users/liyanzhen01/profiler_data`，才显式传同一个目录：
 
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'LOGFILE="/home/users/liyanzhen01/logs/op_profiler_$(date +%Y%m%d_%H%M%S).log" && docker exec -d grab sh -lc "cd /home/users/liyanzhen01/aiak_ds_tool && python -m aiak_infer_tools profiler --data-dir /home/users/liyanzhen01/profiler_data --config-bundle profiler_configs/<CONFIG_FILE> > \"$LOGFILE\" 2>&1" && echo "LOG=$LOGFILE"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'LOGFILE="/home/users/liyanzhen01/logs/op_profiler_$(date +%Y%m%d_%H%M%S).log" && docker exec -d grab sh -lc "cd /home/users/liyanzhen01/aiak_ds_tool && python -m aiak_infer_tools profiler --data-dir /home/users/liyanzhen01/profiler_data --config-bundle profiler_configs/<CONFIG_FILE> > \"$LOGFILE\" 2>&1" && echo "LOG=$LOGFILE"'
 ```
 
 **注意**：使用 `--new-run` 参数创建新 DB 快照，不覆盖已有数据；默认增量模式跳过已有 shape。
@@ -105,23 +105,23 @@ python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'LOGFILE="/home/users/liy
 ### 6. 查询采集进度
 
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'ps aux | grep "profiler" | grep -v grep'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'ps aux | grep "profiler" | grep -v grep'
 ```
 
 查看日志：
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'tail -30 /home/users/liyanzhen01/logs/$(ls -t /home/users/liyanzhen01/logs/ | grep profiler | head -1)'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'tail -30 /home/users/liyanzhen01/logs/$(ls -t /home/users/liyanzhen01/logs/ | grep profiler | head -1)'
 ```
 
 查看 DB 数量：
 ```bash
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'docker exec grab sh -lc "ls /home/users/liyanzhen01/aiak_ds_tool/data/b200/*.db 2>/dev/null | wc -l"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'docker exec grab sh -lc "ls /home/users/liyanzhen01/aiak_ds_tool/data/b200/*.db 2>/dev/null | wc -l"'
 ```
 
 ### 7. 拉取结果到本地
 
 ```bash
-python3 PRIVATE/scripts/rdev.py sync pull --host b200-dev-2 --dest /home/users/liyanzhen01/aiak_ds_tool/data --src /Users/liyanzhen/baidu/profiler_results/<SUBDIR>
+python3 PRIVATE/scripts/rdev.py sync pull --host b200Dev --dest /home/users/liyanzhen01/aiak_ds_tool/data --src /Users/liyanzhen/baidu/profiler_results/<SUBDIR>
 ```
 
 ## 常见操作模式
@@ -133,7 +133,7 @@ python3 PRIVATE/scripts/rdev.py sync pull --host b200-dev-2 --dest /home/users/l
 python3 PRIVATE/scripts/rdev.py sync push --host ...
 
 # 2. 停止旧进程 + 清理旧 DB
-python3 PRIVATE/scripts/rdev.py exec --host b200-dev-2 'docker exec grab sh -lc "pkill -f profiler 2>/dev/null; rm -rf /home/users/liyanzhen01/aiak_ds_tool/data/b200/*.db /home/users/liyanzhen01/aiak_ds_tool/data/.tmp 2>/dev/null"'
+python3 PRIVATE/scripts/rdev.py exec --host b200Dev 'docker exec grab sh -lc "pkill -f profiler 2>/dev/null; rm -rf /home/users/liyanzhen01/aiak_ds_tool/data/b200/*.db /home/users/liyanzhen01/aiak_ds_tool/data/.tmp 2>/dev/null"'
 
 # 3. 启动 grabGPU
 # 4. 启动 profiler
