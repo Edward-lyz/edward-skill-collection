@@ -105,9 +105,15 @@ draft pool 是 MLA 系，没有 `head_num`，开 MTP 起服务就 AttributeError
 正确做法：先把交付目标要开的 flag 组合列成清单，再逐个组合做最小验证：import 得通、
 服务起得来、一条请求打得通。清单和验证结果一起写进 CR 描述。
 
-检测：`import_audit.py --critical-path` 覆盖静态那一半，剩下一半只能跑。
+检测：`import_audit.py --critical-path` 覆盖静态那一半，剩下一半只能跑。开关本身还有
+档位：自适应类特性（例如 adaptive speculative decoding）会在运行时改变步数与 draft
+token 数，低档位是独立代码路径，必须让它真的进过一次，压测或手工把每个档位都固定跑一遍。
 
-实例：本次 M1 / M3 / M4 三个缺陷在 MTP 关闭时全部静默，开 MTP 后两个当场炸。
+实例：本次 M1 / M3 / M4 三个缺陷在 MTP 关闭时全部静默，开 MTP 后两个当场炸。另一例在
+压测中出现：自适应控制器把 speculative steps 降到 0 后走进 1 节点 verify 分支，那里把
+int32 的 bonus_tokens 当成 candidates 传给只接受 int64 的采样 kernel，8 个 scheduler
+同时抛异常退出，HTTP 进程还活着，外部只看到 health check 一直超时。两个父提交在该处
+代码完全一致，属于 M3 而不是合并引入。
 
 ## 上一版门禁为什么没抓到
 
