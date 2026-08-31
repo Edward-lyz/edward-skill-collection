@@ -1,6 +1,6 @@
 ---
 name: sglang-pr-rebase-or-pick
-description: 把一个 fork 分支上选定的连续提交集成到目标分支，或把上游分支整体合并进来。覆盖冻结 SHA、隔离 worktree、冲突语义解决、跨文件契约验证和 review-only 发布。触发词：rebase、cherry-pick 一段提交、合并上游分支、merge 冲突重实现、发 CR 前的门禁。适用于 SGLang 这类 fork 与上游长期分叉的仓库；不做 GPU 引擎启动和精度对比。
+description: 把一个 fork 分支上选定的连续提交集成到目标分支，或把上游分支整体合并进来。覆盖冻结 SHA、隔离 worktree、冲突语义解决、合并后缺陷分类、跨文件契约验证和 review-only 发布。触发词：rebase、cherry-pick 一段提交、合并上游分支、merge 冲突重实现、发 CR 前的门禁。适用于 SGLang 这类 fork 与上游长期分叉的仓库；不做 GPU 引擎启动和精度对比。
 ---
 
 # Fork 分支集成
@@ -27,6 +27,8 @@ description: 把一个 fork 分支上选定的连续提交集成到目标分支�
 4. 任何修复都会让之前的门禁结果失效，必须重跑受影响的门禁，不能沿用旧报告。
 5. 缺硬件、缺依赖、跑不起来就记 deferred，不要把跳过说成通过，也不要为了变绿去改环境。
 6. 不覆盖用户未提交的改动，不清理用户留下的冲突现场。
+7. 门禁跑全树，不只跑改过的文件。会静默存活的缺陷大多落在没有冲突的文件里。
+8. 落在交付目标必经路径上的继承缺陷同样是 blocker，不能以「父提交也这样」放行。
 
 ## 流程
 
@@ -46,6 +48,8 @@ git worktree add -b "$CANDIDATE_BRANCH" "$WORKTREE" "$TARGET_SHA"
 
 冲突不要按行挑，先判断这一处属于哪种语义情形，再决定保留哪一侧、以及要不要在新结构上重新实现 fork 的行为。判断规律见 `references/resolution-laws.md`。
 
+合并完成之后，按 `references/merge-case-taxonomy.md` 逐类过一遍。那份表列的 8 类缺陷都不产生冲突，靠肉眼看 diff 也基本看不出来，每类都写清了检测手段和正确改法。开工前先把交付目标要开的特性组合列成清单（模型、attention 后端、MTP、EP、PD 分离、cache），这份清单同时是 M8 的验证范围和 `--critical-path` 的取值来源。
+
 ## 验证
 
 按证据强度分级，别把弱证据当强证据用：
@@ -59,7 +63,17 @@ E4  构建或集成测试
 E5  代表性运行时冒烟
 ```
 
-三个门禁是这个 skill 自带的，按顺序跑：
+四个门禁是这个 skill 自带的，按顺序跑：
+
+```bash
+# import 可解析性：模块被上游改名、符号没补齐、同名 import 互相覆盖
+python3 "$SKILL_DIR/scripts/import_audit.py" \
+  --repo "$WORKTREE" --parent "$TARGET_SHA" --parent "$SOURCE_SHA" \
+  --critical-path <交付目标必经路径的 glob，可重复> \
+  --output "$ARTIFACTS/import-audit.md"
+```
+
+`import_audit.py` 把发现分成 NEW（只有最终树坏）和 INHERITED（父提交就坏）。NEW 一律是 blocker；INHERITED 落在 `--critical-path` 上也是 blocker，因为那条路径这次才第一次被执行。`ruff` 不解析模块是否存在，这一层它替代不了。
 
 ```bash
 # 接口差分：两个父提交到最终树的签名、参数、call-keyword 变化
@@ -83,7 +97,7 @@ python3 "$SKILL_DIR/scripts/parent_test_delta.py" \
   --output "$ARTIFACTS/parent-test-delta.md"
 ```
 
-`interface_delta.py` 的输出是候选而不是结论，只有 HIGH 行和落在冲突路径上的 MEDIUM 行值得逐条看。另外两个有新增项就是 blocker，exit code 非零。
+`interface_delta.py` 的输出是候选而不是结论，只有 HIGH 行和落在冲突路径上的 MEDIUM 行值得逐条看。`import_audit.py`、`duplicate_definition_check.py`、`parent_test_delta.py` 有新增项就是 blocker，exit code 非零。
 
 测试差分是这三个里命中率最高的一个：有冲突的每个子系统都要在最终树和两个父提交上跑同一批测试。只在最终树失败的用例是 merge 缺陷；和父提交共有的失败属于继承下来的债，不扩大范围；两个父提交都没有的用例单独标注待人工判定。父提交环境跑不起来就记 deferred，不要只拿最终树的结果当证据。
 
@@ -123,4 +137,6 @@ git push origin "$SQ:refs/for/$TARGET_BRANCH"
 - 上游的测试在合并后变红，往往是合并的锅而不是上游的锅；先和父提交对比再下结论。
 - 位置传参在参数顺序被换过之后仍然能通过参数个数检查，只在运行时炸；改成关键字传参。
 - 只有开了某个可选特性才走到的路径，需要单独构造请求去打，否则冒烟全绿也说明不了它。
+- 把坏 import 或坏引用注释掉不算修，删掉才算：注释行会在下一次合并里被当成需要保留的内容。
+- 冲突多的时候按目录整取最省事，但很容易让调用方和被调方分属不同父提交；整取之后必须逐个确认新调用方依赖的符号在最终树里存在。
 - fork 加的硬化逻辑可能收窄了上游支持的输入形状，这类冲突要按"谁的调用方还在产出旧形状"来判，而不是按"谁的代码更新"。
