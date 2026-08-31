@@ -115,6 +115,43 @@ int32 的 bonus_tokens 当成 candidates 传给只接受 int64 的采样 kernel�
 同时抛异常退出，HTTP 进程还活着，外部只看到 health check 一直超时。两个父提交在该处
 代码完全一致，属于 M3 而不是合并引入。
 
+## M9 特性开关被丢掉、或者还在但变成空开关
+
+判定信号：某个 flag 只有一个父提交声明；或者 flag 还在，但读它的代码没了。两种情况都
+不产生冲突，起服务也不报错——CLI 依旧接受这个参数，只是不再有任何效果。
+
+正确做法：先看上游是不是把整套能力（flag 加消费方）一起删了。是就确认场内有没有人在用
+这个参数，没人用才允许跟随删除，并在 CR 描述里点名；有人用就得把能力接回上游的新结构。
+flag 还在但读者没了的情况一律当 blocker：参数看起来生效，实际什么都没做。
+
+检测：`flag_inventory.py` 比对配置 dataclass 在两个父提交与最终树上的字段，报出
+DROPPED / DEFAULT-DRIFT / NO-OP / DEAD 四类；再用 `rg -l -- '--flag-name'` 扫场内的
+部署仓库，确认哪些开关真的在用。
+
+实例：这次合并丢了 `torchao_config` 和 `enable_expert_distribution_metrics` 两个 fork
+侧字段——上游把两套能力连消费方一起删了，场内 YAML 也没人传，可以跟随。另有 8 个场内
+开关（`disaggregation_zmq_ports`、`disaggregation_zmq_max_sockets`、
+`enable_asradix_cache`、`per_node_gpu_num`、`vit_server_url`、`enable_task_results_pull`、
+`enable_mooncake_in_zmq_mode`、`embedding_ib_device`）逐个比对过消费方文件集合，合并前后
+完全一致；其中 `enable_task_results_pull` 在两个父提交里就没有任何读者，属于 DEAD——场内
+54 个 YAML 在传一个空开关。
+
+## 处置「public symbol 在最终树里不存在」
+
+`interface_delta.py` 的 HIGH 行只说明符号名在最终树里查不到，不等于能力丢了。按顺序查：
+
+1. 全树搜同名符号：类被上游搬到别的文件时，调用方仍然解析得到，属于误报；
+2. 找改名后的孪生实现：上游改名常常照抄原注释，拿原实现的注释或 docstring 原文去搜，
+   比按名字猜命中率高；
+3. 查两个父提交里有没有调用方：本来就没人调用的，是 fork 自己的死代码，删掉无害；
+4. 以上都不成立，才是真的能力丢失，按 M7 处理。
+
+实例：本次 5 条 HIGH 全部落在前三种。`CommonKVSender.poll` 等三个是上游把类挪到
+`base/conn.py`、`mori/conn.py`；`page_indices_to_cp_rank_page_indices` 在 fork 里就没有
+调用方；`war_fastpath_runner` 被上游改名成 `last_shared_read_runner`、
+`war_fastpath_read_done_event` 改成 `shared_read_done_event`，注释原文一字未改，靠注释
+搜出来的，WAR barrier 的快路径其实完整保留。
+
 ## 上一版门禁为什么没抓到
 
 四个盲区，都已经补进流程：

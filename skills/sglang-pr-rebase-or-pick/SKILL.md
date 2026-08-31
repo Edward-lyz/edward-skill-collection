@@ -63,7 +63,7 @@ E4  构建或集成测试
 E5  代表性运行时冒烟
 ```
 
-四个门禁是这个 skill 自带的，按顺序跑：
+五个门禁是这个 skill 自带的，按顺序跑：
 
 ```bash
 # import 可解析性：模块被上游改名、符号没补齐、同名 import 互相覆盖
@@ -74,6 +74,15 @@ python3 "$SKILL_DIR/scripts/import_audit.py" \
 ```
 
 `import_audit.py` 把发现分成 NEW（只有最终树坏）和 INHERITED（父提交就坏）。NEW 一律是 blocker；INHERITED 落在 `--critical-path` 上也是 blocker，因为那条路径这次才第一次被执行。`ruff` 不解析模块是否存在，这一层它替代不了。
+
+```bash
+# 特性开关差分：被丢掉的 flag、默认值漂移、还在但没人读的空开关
+python3 "$SKILL_DIR/scripts/flag_inventory.py" \
+  --repo "$WORKTREE" --target "$TARGET_SHA" --source "$SOURCE_SHA" \
+  --consumer-parity --output "$ARTIFACTS/flag-inventory.md"
+```
+
+`flag_inventory.py` 默认只对 fork 侧独有的开关做读者比对（`--parity-scope all` 会慢很多）。DROPPED 和 NO-OP 是 blocker，FORK-ONLY 那一节就是需要逐个确认的场内开关清单，拿它去部署仓库里 `rg -l -- '--flag-name'` 看哪些真的在用。
 
 ```bash
 # 接口差分：两个父提交到最终树的签名、参数、call-keyword 变化
