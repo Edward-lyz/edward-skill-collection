@@ -63,7 +63,21 @@ E4  构建或集成测试
 E5  代表性运行时冒烟
 ```
 
-六个门禁是这个 skill 自带的，按顺序跑：
+七个门禁是这个 skill 自带的。日常直接用 `scripts/run_gates.sh` 一把跑完，它把结果汇成一张表，可以直接贴进 CR 描述：
+
+```bash
+REPO="$WORKTREE" TARGET_SHA="$TARGET_SHA" SOURCE_SHA="$SOURCE_SHA" \
+  ARTIFACTS="$ARTIFACTS" \
+  REVIEW_BASE_SHA="$REVIEW_TARGET_SHA" \
+  CRITICAL_PATHS="<交付必经路径 glob，空格分隔>" \
+  DEPLOY_YAMLS="<发版 YAML，空格分隔>" \
+  CARD_PATTERN="<工单号正则>" \
+  bash "$SKILL_DIR/scripts/run_gates.sh"
+```
+
+`TARGET_SHA` 是 fork 侧父提交，用于所有父子对比；`REVIEW_BASE_SHA` 是评审要落的分支 tip，只给 preflight 用。两父合并时这两个值不同，混用会让 preflight 报出几百个提交。没给 `TEST_COMMAND` 时 parent-test-delta 记 deferred 而不是 pass。
+
+单独跑的话，七个门禁的命令如下：
 
 ```bash
 # import 可解析性：模块被上游改名、符号没补齐、同名 import 互相覆盖
@@ -117,6 +131,16 @@ python3 "$SKILL_DIR/scripts/absent_symbol_triage.py" \
 ```
 
 `absent_symbol_triage.py` 把「public symbol 在最终树里不存在」分成 MOVED（同名还在别处）、RENAMED-TWIN（改了名字但注释原文没变）、DEAD-IN-PARENT（父提交里本来就没人调用）和 REAL-LOSS。只有 REAL-LOSS 需要人看，而且要先问两个问题：这个符号上游有没有过（没有就是 fork 自己的能力，得显式决定跟不跟随删除），以及它在不在这次交付要开的路径上。
+
+```bash
+# fork-only 模块里已经没人调用的残留，拿发版 YAML 的开关做安全网
+python3 "$SKILL_DIR/scripts/orphan_scan.py" \
+  --repo "$WORKTREE" --target "$TARGET_SHA" --source "$SOURCE_SHA" \
+  --deploy-yaml <发版 YAML，可重复> \
+  --output "$ARTIFACTS/orphan-scan.md"
+```
+
+`orphan_scan.py` 的结论用来执行「不要的能力就跟着上游删掉」：ORPHAN 行（没有 importer、名字在别处也不出现、且不读任何发版 YAML 传的开关）直接删文件，别留到下次合并再冲突一遍；DYNAMIC-MAYBE 行意味着名字出现在字符串里，可能被 registry 或 importlib 拉起来，必须人工确认后再动；IN-USE 行不许删。删完重跑 import 门禁。
 
 测试差分是这三个里命中率最高的一个：有冲突的每个子系统都要在最终树和两个父提交上跑同一批测试。只在最终树失败的用例是 merge 缺陷；和父提交共有的失败属于继承下来的债，不扩大范围；两个父提交都没有的用例单独标注待人工判定。父提交环境跑不起来就记 deferred，不要只拿最终树的结果当证据。
 
