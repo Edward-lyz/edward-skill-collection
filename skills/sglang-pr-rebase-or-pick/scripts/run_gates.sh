@@ -22,6 +22,8 @@
 #   TEST_COMMAND     repo test command with a {tree} placeholder
 #   COLLECT_COMMAND  optional test-listing command with the same placeholder
 #   CARD_PATTERN     ticket regex for review_preflight
+#   FLAG_WAIVERS     dispositioned DROPPED/NO-OP flags: name<TAB>reason
+#   SYMBOL_WAIVERS   dispositioned REAL-LOSS symbols: symbol<TAB>reason
 #   MODE             pick or squash (default squash)
 #   PYTHON           interpreter (default python3)
 set -uo pipefail
@@ -41,6 +43,8 @@ CONFIG_CLASS="${CONFIG_CLASS:-ServerArgs}"
 TEST_COMMAND="${TEST_COMMAND:-}"
 COLLECT_COMMAND="${COLLECT_COMMAND:-}"
 CARD_PATTERN="${CARD_PATTERN:-}"
+FLAG_WAIVERS="${FLAG_WAIVERS:-}"
+SYMBOL_WAIVERS="${SYMBOL_WAIVERS:-}"
 MODE="${MODE:-squash}"
 REVIEW_BASE_SHA="${REVIEW_BASE_SHA:-$TARGET_SHA}"
 mkdir -p "$ARTIFACTS"
@@ -60,6 +64,10 @@ critical_args=()
 for glob in $CRITICAL_PATHS; do critical_args+=(--critical-path "$glob"); done
 deploy_args=()
 for yaml in $DEPLOY_YAMLS; do deploy_args+=(--deploy-yaml "$yaml"); done
+flag_waiver_args=()
+[[ -n "$FLAG_WAIVERS" ]] && flag_waiver_args=(--waiver-file "$FLAG_WAIVERS")
+symbol_waiver_args=()
+[[ -n "$SYMBOL_WAIVERS" ]] && symbol_waiver_args=(--waiver-file "$SYMBOL_WAIVERS")
 
 declare -a NAMES=() CODES=() FILES=()
 record() { NAMES+=("$1"); CODES+=("$2"); FILES+=("$3"); }
@@ -82,7 +90,7 @@ run_gate flag-inventory "$ARTIFACTS/flag-inventory.md" \
   "$PYTHON" "$SKILL_DIR/scripts/flag_inventory.py" --repo "$REPO" \
   --target "$TARGET_SHA" --source "$SOURCE_SHA" "${final_args[@]}" \
   --file "$CONFIG_FILE" --class-name "$CONFIG_CLASS" --consumer-parity \
-  --output "$ARTIFACTS/flag-inventory.md"
+  "${flag_waiver_args[@]}" --output "$ARTIFACTS/flag-inventory.md"
 
 run_gate duplicate-definitions "$ARTIFACTS/duplicate-definition.md" \
   "$PYTHON" "$SKILL_DIR/scripts/duplicate_definition_check.py" --repo "$REPO" \
@@ -99,7 +107,7 @@ if [[ -s "$ARTIFACTS/interface-delta.md" ]]; then
     "$PYTHON" "$SKILL_DIR/scripts/absent_symbol_triage.py" --repo "$REPO" \
     --report "$ARTIFACTS/interface-delta.md" --target "$TARGET_SHA" \
     --source "$SOURCE_SHA" "${final_args[@]}" \
-    --output "$ARTIFACTS/absent-symbol-triage.md"
+    "${symbol_waiver_args[@]}" --output "$ARTIFACTS/absent-symbol-triage.md"
 else
   record absent-symbol-triage skipped "$ARTIFACTS/absent-symbol-triage.md"
 fi

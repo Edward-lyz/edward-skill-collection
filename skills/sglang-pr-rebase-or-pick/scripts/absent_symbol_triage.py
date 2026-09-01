@@ -31,6 +31,21 @@ ROW = re.compile(
 ABSENT = "absent from final"
 
 
+def read_waivers(path: Optional[Path]) -> dict[str, str]:
+    """`symbol<TAB>reason` per line; a waiver without a reason is ignored."""
+    waivers: dict[str, str] = {}
+    if path is None or not path.exists():
+        return waivers
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        symbol, _, reason = line.partition("\t")
+        if reason.strip():
+            waivers[symbol.strip()] = reason.strip()
+    return waivers
+
+
 @dataclass
 class Row:
     origin: str
@@ -112,7 +127,14 @@ def main() -> int:
         "--final", default=None, help="merged revision; omit for working tree"
     )
     parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument(
+        "--waiver-file",
+        type=Path,
+        default=None,
+        help="dispositioned REAL-LOSS symbols: symbol<TAB>reason per line",
+    )
     args = parser.parse_args()
+    waivers = read_waivers(args.waiver_file)
 
     rows: list[Row] = []
     for line in args.report.read_text(encoding="utf-8").splitlines():
@@ -173,7 +195,19 @@ def main() -> int:
                 ("REAL-LOSS", row, f"callers in parent: {len(owner_files)}")
             )
 
-    order = {"REAL-LOSS": 0, "RENAMED-TWIN": 1, "DEAD-IN-PARENT": 2, "MOVED": 3}
+    verdicts = [
+        ("WAIVED", row, waivers[row.symbol])
+        if verdict == "REAL-LOSS" and row.symbol in waivers
+        else (verdict, row, note)
+        for verdict, row, note in verdicts
+    ]
+    order = {
+        "REAL-LOSS": 0,
+        "RENAMED-TWIN": 1,
+        "DEAD-IN-PARENT": 2,
+        "WAIVED": 3,
+        "MOVED": 4,
+    }
     verdicts.sort(key=lambda item: (order[item[0]], item[1].path, item[1].symbol))
     counts: dict[str, int] = {}
     for verdict, _row, _note in verdicts:

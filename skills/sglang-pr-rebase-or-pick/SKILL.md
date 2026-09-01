@@ -72,10 +72,14 @@ REPO="$WORKTREE" TARGET_SHA="$TARGET_SHA" SOURCE_SHA="$SOURCE_SHA" \
   CRITICAL_PATHS="<交付必经路径 glob，空格分隔>" \
   DEPLOY_YAMLS="<发版 YAML，空格分隔>" \
   CARD_PATTERN="<工单号正则>" \
+  FLAG_WAIVERS="$ARTIFACTS/gate-flag-waivers.tsv" \
+  SYMBOL_WAIVERS="$ARTIFACTS/gate-symbol-waivers.tsv" \
   bash "$SKILL_DIR/scripts/run_gates.sh"
 ```
 
 `TARGET_SHA` 是 fork 侧父提交，用于所有父子对比；`REVIEW_BASE_SHA` 是评审要落的分支 tip，只给 preflight 用。两父合并时这两个值不同，混用会让 preflight 报出几百个提交。没给 `TEST_COMMAND` 时 parent-test-delta 记 deferred 而不是 pass。
+
+已经判过的发现写进 waiver 文件，格式是 `名字<TAB>理由`，没写理由的行不生效。`flag_inventory` 收 DROPPED / NO-OP 的豁免，`absent_symbol_triage` 收 REAL-LOSS 的豁免。这样门禁对新发现仍然会红，判过的东西不必每轮重判，而且理由本身就是 CR 里的处置记录。waiver 是每次合并的数据，跟产物放一起，不进 skill 仓库。
 
 单独跑的话，七个门禁的命令如下：
 

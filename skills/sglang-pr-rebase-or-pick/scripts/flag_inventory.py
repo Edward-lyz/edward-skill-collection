@@ -32,6 +32,21 @@ from typing import Optional
 MISSING = "<dropped>"
 
 
+def read_waivers(path: Optional[Path]) -> dict[str, str]:
+    """`name<TAB>reason` per line. A waiver without a reason is not accepted."""
+    waivers: dict[str, str] = {}
+    if path is None or not path.exists():
+        return waivers
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, _, reason = line.partition("\t")
+        if reason.strip():
+            waivers[name.strip()] = reason.strip()
+    return waivers
+
+
 def find_readers(
     repo: Path,
     rev: Optional[str],
@@ -139,6 +154,12 @@ def main() -> int:
     )
     parser.add_argument("--output", type=Path, default=None)
     parser.add_argument(
+        "--waiver-file",
+        type=Path,
+        default=None,
+        help="dispositioned DROPPED/NO-OP flags: name<TAB>reason per line",
+    )
+    parser.add_argument(
         "--consumer-parity",
         action="store_true",
         help="also check whether each kept flag still has a reader",
@@ -186,6 +207,8 @@ def main() -> int:
             drift.append((name, parent_default, final[name], "/".join(owners)))
 
     final_label = args.final or "working tree"
+    waivers = read_waivers(args.waiver_file)
+    waived = [(name, waivers[name]) for name in dropped + [] if name in waivers]
     noop: list[str] = []
     dead: list[str] = []
     if args.consumer_parity:
@@ -233,11 +256,16 @@ def main() -> int:
         report += [f"- {name}" for name in noop] or ["- none"]
         report += ["", f"## DEAD ({len(dead)})"]
         report += [f"- {name}" for name in dead] or ["- none"]
+    unwaived_dropped = [name for name in dropped if name not in waivers]
+    unwaived_noop = [name for name in noop if name not in waivers]
+    waived += [(name, waivers[name]) for name in noop if name in waivers]
+    report += ["", f"## WAIVED ({len(waived)})"]
+    report += [f"- {name}: {reason}" for name, reason in waived] or ["- none"]
     text = "\n".join(report) + "\n"
     if args.output:
         args.output.write_text(text, encoding="utf-8")
     print(text)
-    return 1 if dropped or drift or noop else 0
+    return 1 if unwaived_dropped or drift or unwaived_noop else 0
 
 
 if __name__ == "__main__":
