@@ -63,7 +63,7 @@ E4  构建或集成测试
 E5  代表性运行时冒烟
 ```
 
-五个门禁是这个 skill 自带的，按顺序跑：
+六个门禁是这个 skill 自带的，按顺序跑：
 
 ```bash
 # import 可解析性：模块被上游改名、符号没补齐、同名 import 互相覆盖
@@ -107,6 +107,16 @@ python3 "$SKILL_DIR/scripts/parent_test_delta.py" \
 ```
 
 `interface_delta.py` 的输出是候选而不是结论，只有 HIGH 行和落在冲突路径上的 MEDIUM 行值得逐条看。`import_audit.py`、`duplicate_definition_check.py`、`parent_test_delta.py` 有新增项就是 blocker，exit code 非零。
+
+```bash
+# 把 interface_delta 的 HIGH 行按处置顺序自动分类，只留下真正要人看的
+python3 "$SKILL_DIR/scripts/absent_symbol_triage.py" \
+  --repo "$WORKTREE" --report "$ARTIFACTS/interface-delta.md" \
+  --target "$TARGET_SHA" --source "$SOURCE_SHA" \
+  --output "$ARTIFACTS/absent-symbol-triage.md"
+```
+
+`absent_symbol_triage.py` 把「public symbol 在最终树里不存在」分成 MOVED（同名还在别处）、RENAMED-TWIN（改了名字但注释原文没变）、DEAD-IN-PARENT（父提交里本来就没人调用）和 REAL-LOSS。只有 REAL-LOSS 需要人看，而且要先问两个问题：这个符号上游有没有过（没有就是 fork 自己的能力，得显式决定跟不跟随删除），以及它在不在这次交付要开的路径上。
 
 测试差分是这三个里命中率最高的一个：有冲突的每个子系统都要在最终树和两个父提交上跑同一批测试。只在最终树失败的用例是 merge 缺陷；和父提交共有的失败属于继承下来的债，不扩大范围；两个父提交都没有的用例单独标注待人工判定。父提交环境跑不起来就记 deferred，不要只拿最终树的结果当证据。
 

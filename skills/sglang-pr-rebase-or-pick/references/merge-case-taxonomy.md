@@ -152,6 +152,25 @@ DROPPED / DEFAULT-DRIFT / NO-OP / DEAD 四类；再用 `rg -l -- '--flag-name'` 
 `war_fastpath_read_done_event` 改成 `shared_read_done_event`，注释原文一字未改，靠注释
 搜出来的，WAR barrier 的快路径其实完整保留。
 
+这四步已经写进 `scripts/absent_symbol_triage.py`，规模化时直接跑：mem_cache /
+disaggregation / speculative / managers 四个子系统共 243 个双侧都改过的文件，156 条 HIGH
+行自动分成 MOVED 119、RENAMED-TWIN 7、DEAD-IN-PARENT 9、REAL-LOSS 21，只剩最后一档要人看。
+
+REAL-LOSS 还要再过两个筛子，否则会把上游的重构误判成事故：
+
+1. 这个符号上游有没有过。上游从来没有、fork 独有、调用方也一起消失，说明合并整体跟随了
+   上游的新结构，不会有悬空引用；此时要判的是「这个能力还要不要」，属于产品决定而不是
+   合并缺陷。上游有而最终树没有，才是合并把上游的东西弄丢了，性质严重得多。
+2. 它在不在这次交付要开的路径上。不在，就记成跟随删除并在 CR 描述里点名，让相关 owner
+   知道；在，就必须按 M7 接回去。
+
+实例：那 21 条 REAL-LOSS 里落在 `srt/` 的 10 条（`flush_write_through_acks`、
+`backup_state`、`StagingRegisterInfo`、`HiCacheController.set_draft_kv_pool`、
+`KVCacheEventMixin`、`dcp_kernel_indices`、`attach_hybrid_pool_to_mamba_cache`、
+`hi_mamba_radix_cache`、`multi_layer_draft_forward_cg`、`resolve_future_token_ids`）全部
+是 fork 独有、上游一个都没有、调用方连同定义一起消失，并且对应的开关（asradix、hicache、
+kv-events、DCP、multi-layer eagle、NPU 后端）在本次交付的发版 YAML 里都没开。
+
 ## 上一版门禁为什么没抓到
 
 四个盲区，都已经补进流程：
