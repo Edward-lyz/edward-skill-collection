@@ -1,6 +1,6 @@
 ---
 name: sglang-pr-rebase-or-pick
-description: 把一个 fork 分支上选定的连续提交集成到目标分支，或把上游分支整体合并进来。覆盖冻结 SHA、隔离 worktree、冲突语义解决、合并后缺陷分类、跨文件契约验证和 review-only 发布。触发词：rebase、cherry-pick 一段提交、合并上游分支、merge 冲突重实现、发 CR 前的门禁。适用于 SGLang 这类 fork 与上游长期分叉的仓库；不做 GPU 引擎启动和精度对比。
+description: 把一个 fork 分支上选定的连续提交集成到目标分支，或把上游分支整体合并进来。覆盖冻结 SHA、隔离 worktree、意图冲突对隔离、冲突语义解决、合并后缺陷分类、跨文件与跨组件契约验证和 review-only 发布。触发词：rebase、cherry-pick 一段提交、合并上游分支、merge 冲突重实现、发 CR 前的门禁。适用于 SGLang 这类 fork 与上游长期分叉的仓库；跨组件契约只给验证清单和判定点，不代管集群资源调度和精度调优。
 ---
 
 # Fork 分支集成
@@ -44,11 +44,34 @@ git log --reverse --topo-order --format="%H%x09%cI%x09%an%x09%s" "$TARGET_SHA..$
 git worktree add -b "$CANDIDATE_BRANCH" "$WORKTREE" "$TARGET_SHA"
 ```
 
+### 先隔离意图冲突对
+
+长期分叉的 fork 和上游经常把同一个能力各做一遍。这类提交对是整支合并做得最差的地方：按行合并要么留下两份实现，要么留下 fork 的调用方配上游的被调方，而且两种结果都不产生冲突。所以合并之前先把它们找出来，而不是等合并后的门禁在几百个符号里帮你捞：
+
+```bash
+python3 "$SKILL_DIR/scripts/intent_overlap_scan.py" \
+  --repo "$WORKTREE" --target "$TARGET_SHA" --source "$SOURCE_SHA" \
+  --waiver-file "$ARTIFACTS/gate-intent-waivers.tsv" \
+  --output "$ARTIFACTS/intent-overlap.md"
+```
+
+配对依据是「双侧都改过的文件」加「提交标题的主题词」，共享文件按稀有度加权，所以被上百个提交改过的热点文件不会把所有提交两两配上。输出分四档，默认只报前两档：LOCAL-ADAPT 是 fork 侧带环境适配特征（cache、显存、监控、传输）的对子，RIVAL 是双方都在做同一件事，FILE-ONLY 和 TOPIC-ONLY 是偶然碰撞，要看得加 `--kinds`。没被报出来的提交在另一侧没有对手，可以直接跟着批量合并走。
+
+每个 LOCAL-ADAPT / RIVAL 对子先定取舍再动手，结论只有三种，不要在合并现场即兴决定：
+
+1. 上游做得更好：彻底删掉场内实现，按「跟随删除的执行标准」删干净，不留一份没人调用的代码等下次合并再冲突一遍。
+2. 场内做的是环境适配、上游没有对应能力：保留场内行为并接到上游的新结构上（L2 / L9），不要因为上游有形似的代码就判为已吸收。
+3. 两边各保了不同的性质：先分别写清各自要保什么，再合成一份实现。
+
+落地分两段。第一段做批量合并，这些对子涉及的位置先整取一侧（一般取上游）让合并干净落地；第二段在合并之上一个对子一个提交地做处置，标题带 fork 短 SHA 和 upstream 短 SHA，正文写取舍理由。一个对子一个提交的价值在追查，不在 push 形态：评审只收一个提交时，worktree 里照样保留这份分段历史，`git log --oneline "$TARGET_SHA..HEAD"` 就是处置台账，push 前再用 `git commit-tree` 压成一个（见「发布」），处置清单进 commit message，`intent-overlap.md` 进 CR 描述。
+
+判过的对子写进 waiver 文件，格式 `fork 短 SHA<TAB>理由`。两个父提交都是冻结 SHA，所以 waiver 跨 patchset 一直有效，理由列本身就是 CR 里的处置记录。
+
 `pick` 模式在这个 worktree 里逐提交 `git cherry-pick`，每个 old commit 必须对应一个 new commit，冲突当场解决当场记录。`squash` 模式做一次整体合入，最终相对目标只留一个提交，后续修复一律 `git commit --amend --no-edit`。
 
 冲突不要按行挑，先判断这一处属于哪种语义情形，再决定保留哪一侧、以及要不要在新结构上重新实现 fork 的行为。判断规律见 `references/resolution-laws.md`。
 
-合并完成之后，按 `references/merge-case-taxonomy.md` 逐类过一遍。那份表列的 8 类缺陷都不产生冲突，靠肉眼看 diff 也基本看不出来，每类都写清了检测手段和正确改法。开工前先把交付目标要开的特性组合列成清单（模型、attention 后端、MTP、EP、PD 分离、cache），这份清单同时是 M8 的验证范围和 `--critical-path` 的取值来源。
+合并完成之后，按 `references/merge-case-taxonomy.md` 逐类过一遍。那份表列的 9 类缺陷都不产生冲突，靠肉眼看 diff 也基本看不出来，每类都写清了检测手段和正确改法。开工前先把交付目标要开的特性组合列成清单（模型、attention 后端、MTP、EP、PD 分离、cache），这份清单同时是 M8 的验证范围和 `--critical-path` 的取值来源。
 
 ## 验证
 
@@ -63,7 +86,7 @@ E4  构建或集成测试
 E5  代表性运行时冒烟
 ```
 
-七个门禁是这个 skill 自带的。日常直接用 `scripts/run_gates.sh` 一把跑完，它把结果汇成一张表，可以直接贴进 CR 描述：
+八个门禁是这个 skill 自带的。日常直接用 `scripts/run_gates.sh` 一把跑完，它把结果汇成一张表，可以直接贴进 CR 描述：
 
 ```bash
 REPO="$WORKTREE" TARGET_SHA="$TARGET_SHA" SOURCE_SHA="$SOURCE_SHA" \
@@ -74,14 +97,17 @@ REPO="$WORKTREE" TARGET_SHA="$TARGET_SHA" SOURCE_SHA="$SOURCE_SHA" \
   CARD_PATTERN="<工单号正则>" \
   FLAG_WAIVERS="$ARTIFACTS/gate-flag-waivers.tsv" \
   SYMBOL_WAIVERS="$ARTIFACTS/gate-symbol-waivers.tsv" \
+  INTENT_WAIVERS="$ARTIFACTS/gate-intent-waivers.tsv" \
   bash "$SKILL_DIR/scripts/run_gates.sh"
 ```
 
 `TARGET_SHA` 是 fork 侧父提交，用于所有父子对比；`REVIEW_BASE_SHA` 是评审要落的分支 tip，只给 preflight 用。两父合并时这两个值不同，混用会让 preflight 报出几百个提交。没给 `TEST_COMMAND` 时 parent-test-delta 记 deferred 而不是 pass。
 
-已经判过的发现写进 waiver 文件，格式是 `名字<TAB>理由`，没写理由的行不生效。`flag_inventory` 收 DROPPED / NO-OP 的豁免，`absent_symbol_triage` 收 REAL-LOSS 的豁免。这样门禁对新发现仍然会红，判过的东西不必每轮重判，而且理由本身就是 CR 里的处置记录。waiver 是每次合并的数据，跟产物放一起，不进 skill 仓库。
+`intent_overlap_scan` 是八个里唯一只读两个冻结父提交的，合并前后跑出来一样，所以它既是合并前的隔离清单，也是合并后的「这些对子你处置了吗」检查表。
 
-单独跑的话，七个门禁的命令如下：
+已经判过的发现写进 waiver 文件，格式是 `名字<TAB>理由`，没写理由的行不生效。`flag_inventory` 收 DROPPED / NO-OP 的豁免，`absent_symbol_triage` 收 REAL-LOSS 的豁免，`intent_overlap_scan` 收已处置的意图冲突对（键是 fork 短 SHA）。这样门禁对新发现仍然会红，判过的东西不必每轮重判，而且理由本身就是 CR 里的处置记录。waiver 是每次合并的数据，跟产物放一起，不进 skill 仓库。
+
+单独跑的话，其余七个门禁的命令如下（`intent_overlap_scan` 见上面「先隔离意图冲突对」）：
 
 ```bash
 # import 可解析性：模块被上游改名、符号没补齐、同名 import 互相覆盖
@@ -159,6 +185,10 @@ git status --short
 
 能编译就编译，能跑仓库自带的 lint 或 pre-commit 就跑。改动过的文件的静态检查要和冻结目标上的同一批文件对比条数，只关心新增的那几条。
 
+### 跨组件契约
+
+门禁全绿只说明仓库内部自洽。合并会同时换掉 reasoning parser、chat template 的消费逻辑和 protocol 的字段规范化，这三处的另一端在推理链路网关和评测框架里，diff 和静态门禁一个都看不见。判定点、八种请求写法的验证矩阵和本次实测出的契约事实见 `references/pipeline-contract.md`。那份文档的第一条规则是先用最小实验确定「谁在加工数据」再动代码：本次因为跳过这一步，连发了三版建立在错误假设上的 patchset，全部作废重写。
+
 ## 发布
 
 ```bash
@@ -188,3 +218,6 @@ git push origin "$SQ:refs/for/$TARGET_BRANCH"
 - 冲突多的时候按目录整取最省事，但很容易让调用方和被调方分属不同父提交；整取之后必须逐个确认新调用方依赖的符号在最终树里存在。
 - 服务「挂住」经常不是死锁：worker 抛异常退出后 HTTP 进程还活着，外部只看到 health check 超时。看日志先搜 `Scheduler hit an exception` 之类的 traceback，再谈 hang。
 - fork 加的硬化逻辑可能收窄了上游支持的输入形状，这类冲突要按"谁的调用方还在产出旧形状"来判，而不是按"谁的代码更新"。
+- 双方都做过同一个能力的提交对，合并时最容易两份实现都留下，而且不产生冲突；合并前先扫一遍，别指望合并后的门禁在几百个符号里帮你捞。
+- 看起来只做输出格式化的参数（例如 `--reasoning-parser`）删掉之后坏的往往不是格式而是 function call。这类参数按「谁在消费它的输出」判，不能按名字判。
+- 「同一条请求直连引擎正常、走网关不正常」不等于网关有问题：引擎侧会从转发来的字段合成 `chat_template_kwargs`，走网关的流量天然多带字段。先在裸 token、直连、经网关三个观测点各打一次，再决定改谁的代码。

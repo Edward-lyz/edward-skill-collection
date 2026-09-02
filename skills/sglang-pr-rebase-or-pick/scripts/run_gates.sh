@@ -24,6 +24,8 @@
 #   CARD_PATTERN     ticket regex for review_preflight
 #   FLAG_WAIVERS     dispositioned DROPPED/NO-OP flags: name<TAB>reason
 #   SYMBOL_WAIVERS   dispositioned REAL-LOSS symbols: symbol<TAB>reason
+#   INTENT_WAIVERS   dispositioned rival commit pairs: fork_short<TAB>reason
+#   INTENT_MAX_COMMITS  per-side scan cap for intent_overlap_scan (default 400)
 #   MODE             pick or squash (default squash)
 #   PYTHON           interpreter (default python3)
 set -uo pipefail
@@ -45,6 +47,8 @@ COLLECT_COMMAND="${COLLECT_COMMAND:-}"
 CARD_PATTERN="${CARD_PATTERN:-}"
 FLAG_WAIVERS="${FLAG_WAIVERS:-}"
 SYMBOL_WAIVERS="${SYMBOL_WAIVERS:-}"
+INTENT_WAIVERS="${INTENT_WAIVERS:-}"
+INTENT_MAX_COMMITS="${INTENT_MAX_COMMITS:-400}"
 MODE="${MODE:-squash}"
 REVIEW_BASE_SHA="${REVIEW_BASE_SHA:-$TARGET_SHA}"
 mkdir -p "$ARTIFACTS"
@@ -68,6 +72,8 @@ flag_waiver_args=()
 [[ -n "$FLAG_WAIVERS" ]] && flag_waiver_args=(--waiver-file "$FLAG_WAIVERS")
 symbol_waiver_args=()
 [[ -n "$SYMBOL_WAIVERS" ]] && symbol_waiver_args=(--waiver-file "$SYMBOL_WAIVERS")
+intent_waiver_args=()
+[[ -n "$INTENT_WAIVERS" ]] && intent_waiver_args=(--waiver-file "$INTENT_WAIVERS")
 
 declare -a NAMES=() CODES=() FILES=()
 record() { NAMES+=("$1"); CODES+=("$2"); FILES+=("$3"); }
@@ -80,6 +86,14 @@ run_gate() {
   tail -3 "$out.stdout"
   record "$name" "$code" "$out"
 }
+
+# Runs first: it only reads the two frozen parents, so it is also the one gate
+# worth running before the merge, to decide what must be picked in isolation.
+run_gate intent-overlap "$ARTIFACTS/intent-overlap.md" \
+  "$PYTHON" "$SKILL_DIR/scripts/intent_overlap_scan.py" --repo "$REPO" \
+  --target "$TARGET_SHA" --source "$SOURCE_SHA" \
+  --max-commits "$INTENT_MAX_COMMITS" "${intent_waiver_args[@]}" \
+  --output "$ARTIFACTS/intent-overlap.md"
 
 run_gate import-audit "$ARTIFACTS/import-audit.md" \
   "$PYTHON" "$SKILL_DIR/scripts/import_audit.py" --repo "$REPO" \
