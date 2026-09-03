@@ -1,0 +1,161 @@
+#!/usr/bin/env python3
+"""mem-analysis: GPU memory analysis skill CLI.
+
+Subcommands:
+  analyze-weights   HF theoretical weight sizes + (optional) diff vs sglang dump.
+  analyze-memory    Staged startup GPU-memory analysis (capability A, needs a pod).
+
+Only analyze-weights is fully self-contained (reads safetensors headers over HTTP
+Range; never downloads weight bodies). See references/ for details.
+"""
+
+import argparse
+import os
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_HERE)
+sys.path.insert(0, os.path.join(_ROOT, "scripts"))
+sys.path.insert(0, _ROOT)  # for `model_adapters` package
+
+
+def cmd_analyze_weights(args):
+    from hf_weight_theory import load_theoretical_tensors
+    from module_taxonomy import Taxonomy
+    from sglang_name_map import build_mapping, scan_sglang_stacked_mapping
+    from weight_diff import (parse_stats_file, render_theory_report,
+                             render_diff_report, write_theory_xlsx, write_diff_xlsx)
+    from model_adapters import get_adapter
+
+    adapter = get_adapter(args.model, tp=1)
+    tax = Taxonomy(extra_rules=adapter.extra_rules(), adapter=adapter)
+
+    theory_tensors = load_theoretical_tensors(
+        args.hf, rev=args.rev, endpoint=args.hf_endpoint, token=args.hf_token)
+    theory = tax.aggregate(theory_tensors)
+    theory_detailed = tax.aggregate_detailed(theory_tensors)
+    theory_by_module = tax.aggregate_by_module(theory_tensors)
+
+    os.makedirs(args.out, exist_ok=True)
+    theory_report = render_theory_report(theory, theory_detailed, theory_by_module)
+    theory_path = os.path.join(args.out, "weight_theory_report.md")
+    with open(theory_path, "w") as f:
+        f.write(theory_report)
+    print(theory_report)
+    print(f"[written] {theory_path}")
+    try:
+        xlsx_path = os.path.join(args.out, "weight_theory_report.xlsx")
+        write_theory_xlsx(theory, theory_detailed, xlsx_path, theory_by_module)
+        print(f"[written] {xlsx_path}")
+    except Exception as e:
+        print(f"[warn] theory xlsx skipped: {e}")
+
+    if not args.stats_file:
+        print("\n(no --stats-file given: skipping diff; theory only)")
+        return 0
+
+    # Parallel config comes from the launch (INDEPENDENT of the dump). Never
+    # infer shard degree from the measured bytes -> that would make Delta a
+    # tautology. If no config is supplied we run in observed-ratio-only mode.
+    cfg = None
+    if args.yaml:
+        from analyze_startup_stages import extract_launch, parse_parallel_config
+        cfg = parse_parallel_config(extract_launch(args.yaml)["raw"])
+    if any(v is not None for v in (args.tp_size, args.ep_size, args.dcp_size, args.dp_size)):
+        cfg = cfg or {"tp": 1, "ep": 1, "dcp": 1, "dp": 1}
+        for k, v in (("tp", args.tp_size), ("ep", args.ep_size),
+                     ("dcp", args.dcp_size), ("dp", args.dp_size)):
+            if v is not None:
+                cfg[k] = v
+    if cfg:
+        print(f"[config] parallel degrees (from launch/flags): {cfg}")
+    else:
+        print("[config] none supplied -> observed-ratio-only mode "
+              "(no shard-degree prediction, avoids circular fitting)")
+
+    measured_tensors = parse_stats_file(args.stats_file)
+    measured = tax.aggregate(measured_tensors)
+    mapping_rows = build_mapping(list(theory.keys()) + list(measured.keys()), adapter)
+    stacked = scan_sglang_stacked_mapping(args.sglang_src, model_hint=args.model)
+    diff_report = render_diff_report(theory, measured, mapping_rows, cfg, stacked)
+    diff_path = os.path.join(args.out, "weight_diff_report.md")
+    with open(diff_path, "w") as f:
+        f.write(diff_report)
+    print(diff_report)
+    print(f"[written] {diff_path}")
+    try:
+        xlsx_path = os.path.join(args.out, "weight_diff_report.xlsx")
+        write_diff_xlsx(theory, measured, mapping_rows, cfg, xlsx_path)
+        print(f"[written] {xlsx_path}")
+    except Exception as e:
+        print(f"[warn] diff xlsx skipped: {e}")
+    return 0
+
+
+def cmd_analyze_memory(args):
+    print("analyze-memory (capability A) orchestrates: PREFLIGHT (mandatory) -> "
+          "analyze_startup_stages -> inject_hooks -> deploy_and_patch -> "
+          "run_and_collect -> report_memory.\n"
+          "Run `mem-analysis preflight --yaml ... --sglang-src ...` FIRST; the "
+          "later steps require a live k8s pod. See references/stage_hook_points.md.")
+    return 0
+
+
+def cmd_preflight(args):
+    from preflight_capability_a import main as preflight_main
+    argv = ["--yaml", args.yaml, "--sglang-src", args.sglang_src,
+            "--snapshot-dir", args.snapshot_dir]
+    if args.model_runner:
+        argv += ["--model-runner", args.model_runner]
+    if args.env_out:
+        argv += ["--env-out", args.env_out]
+    if args.allow_partial:
+        argv += ["--allow-partial"]
+    return preflight_main(argv)
+
+
+def main():
+    p = argparse.ArgumentParser(prog="mem-analysis")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    aw = sub.add_parser("analyze-weights",
+                        help="HF theoretical weight sizes + diff vs sglang dump")
+    aw.add_argument("--hf", required=True,
+                    help="HF repo id, hf.co URL, or local model dir")
+    aw.add_argument("--rev", default="main")
+    aw.add_argument("--hf-endpoint", default=None)
+    aw.add_argument("--hf-token", default=None)
+    aw.add_argument("--stats-file", default=None,
+                    help="sglang _dump_param_memory_stats output for diff")
+    aw.add_argument("--sglang-src", default=None,
+                    help="sglang source tree to scan stacked_params_mapping")
+    aw.add_argument("--model", default=None, help="adapter name, e.g. kimi_k3")
+    aw.add_argument("--yaml", default=None,
+                    help="deploy yaml to read parallel degrees (tp/ep/dcp/dp) from")
+    aw.add_argument("--tp-size", type=int, default=None)
+    aw.add_argument("--ep-size", type=int, default=None)
+    aw.add_argument("--dcp-size", type=int, default=None)
+    aw.add_argument("--dp-size", type=int, default=None)
+    aw.add_argument("--out", default="./mem_analysis_out")
+    aw.set_defaults(func=cmd_analyze_weights)
+
+    am = sub.add_parser("analyze-memory", help="staged startup memory analysis (needs pod)")
+    am.set_defaults(func=cmd_analyze_memory)
+
+    pf = sub.add_parser("preflight", help="MANDATORY capability-A preflight: "
+                        "hook-point validation + adapter skeleton + trace env")
+    pf.add_argument("--yaml", required=True, help="deploy yaml")
+    pf.add_argument("--sglang-src", required=True, help="sglang source tree")
+    pf.add_argument("--model-runner", default=None,
+                    help="model_runner.py path (default: auto-locate)")
+    pf.add_argument("--snapshot-dir", default="/tmp/capsnap")
+    pf.add_argument("--env-out", default=None)
+    pf.add_argument("--allow-partial", action="store_true")
+    pf.set_defaults(func=cmd_preflight)
+
+    args = p.parse_args()
+    sys.exit(args.func(args))
+
+
+if __name__ == "__main__":
+    main()
