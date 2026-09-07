@@ -11,6 +11,8 @@ description: 把一个 fork 分支上选定的连续提交集成到目标分支�
 
 不适用：单个提交的干净 cherry-pick、没有冲突的 fast-forward、纯粹的分支改名。这些直接用 Git 即可。
 
+整支追社区新版本（换基线）时，先用 sglang-fork-rebase-first 评估「基线直换 + 厂内 PR 台账化重放」的路线；该路线中每个 pick 的冲突语义、合并后门禁与跨组件契约验证仍回到本 skill。
+
 ## 两种模式
 
 `pick`：对选定范围逐提交 cherry-pick，保留 old/new commit 一一映射。适合需要把每个提交单独送审、或需要在中途停下来的场景。
