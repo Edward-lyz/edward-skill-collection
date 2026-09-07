@@ -8,6 +8,7 @@ signals that drive category and difficulty decisions:
 - fork_only: files the community base does not have (clean-pick signal)
 - conflict_hist: overlap with a previous whole-branch merge conflict list
 - cat_hint: keyword-based category suggestion (a human must confirm)
+- feature: delivery-feature binding, human fills (epd_mm/cache/dspark/vl_kernel/none)
 
 Outputs inventory.tsv (one row per commit) and cards_summary.md.
 """
@@ -43,8 +44,10 @@ TITLE_HINTS: list[tuple[str, str]] = [
     (r"监控|指标|metric|日志|log schema|trace|pyspy|prometheus", "A2"),
     (r"asradix|attention ?store|radix|cache", "A3"),
     (
-        r"EPD|encode|embedding|tokenize|transfer|mooncake|zmq"
-        r"|ibdevice|协议|接口|health",
+        (
+            r"EPD|encode|embedding|tokenize|transfer|mooncake|zmq"
+            r"|ibdevice|协议|接口|health"
+        ),
         "A1",
     ),
     (r"kernel opt|显存|memory|量化|weight shard|mxfp4|fp8", "B1"),
@@ -154,7 +157,7 @@ def main() -> None:
         lines = add + dele
         rows.append({
             "sha": sha, "date": date, "author": author, "card": card, "title": title,
-            "cat_hint": cat, "cat": "", "model": model, "files": len(files),
+            "cat_hint": cat, "cat": "", "feature": "", "model": model, "files": len(files),
             "add": add, "del": dele, "fork_only": fork_only, "conflict_hist": conflict,
             "difficulty": difficulty(lines, fork_only, len(files), conflict, hot),
             "icode": args.icode_template.format(sha=full)
@@ -186,7 +189,7 @@ def main() -> None:
         md.append(f"| {card} | {len(rs)} | {lines_sum:,} | {fo}/{nf} | {cf} | {mix} |")
     (out_dir / "cards_summary.md").write_text("\n".join(md) + "\n")
     print(f"{len(rows)} commits, {len(cards)} cards -> {tsv}")
-    print("cat 列为空，人工确认 cat_hint 后填入；混合卡逐提交定类。")
+    print("cat/feature 列为空，人工确认 cat_hint 后填入；混合卡逐提交定类，特性绑定块打 feature 标签。")
 
 
 if __name__ == "__main__":

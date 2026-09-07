@@ -1,6 +1,6 @@
 ---
 name: sglang-fork-rebase-first
-description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。先把 fork 相对旧基线的提交按七类台账化（链路适配、监控适配、Cache 适配、通用模型优化、通用 BUGFIX、具体模型优化、具体模型 BUGFIX），社区已收录直接丢弃、非交付模型的专属改动不迁移，剩余按原始拓扑序逐卡 pick 到新基线。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
+description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。先把 fork 相对旧基线的提交按七类台账化（链路适配、监控适配、Cache 适配、通用模型优化、通用 BUGFIX、具体模型优化、具体模型 BUGFIX），社区已收录直接丢弃、非交付模型的专属改动不迁移、特性绑定的改动（多模态 EPD/Cache/投机）按交付特性清单取舍，剩余按原始拓扑序逐卡 pick 到新基线。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
 ---
 
 # 追社区：基线直换 + 台账化重放
@@ -21,9 +21,10 @@ description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台
    上去。冲突仍会有，但每个冲突落在单一意图、单一 owner 的小补丁里，可判可审。
 
 K3 分支实测（226 提交 / 13.4 万行的厂内谱系）：社区已收录 34 提交 / 6.4 万行在新基线
-下免费消失；非交付模型的专属改动 43 提交 / 1.6 万行显式不迁移；**必迁只剩 128 提交 /
-4.5 万行（34%）**，其中大头（EPD 链路 2.6 万行、AttentionStore 1.5 万行）以 fork 独有
-文件为主，pick 接近零冲突。完整台账见 references/pr-taxonomy.md。
+下免费消失；非交付模型的专属改动 43 提交 / 1.6 万行显式不迁移；特性绑定的改动只在
+交付开启对应特性时迁（多模态 EPD 栈 2.4 万行——社区已有平行框架，开启时也先 diff
+再搬 delta；AttentionStore 1.5 万行；DSpark/VL kernel 1 千行）；**无条件必迁只剩
+43 提交 / 5 千行（4%）**。完整台账见 references/pr-taxonomy.md。
 
 ## 何时使用
 
@@ -38,8 +39,10 @@ waiver、跨组件契约验证，全部沿用 sglang-pr-rebase-or-pick，不重�
 1. 冻结三个引用再动手：FORK_SHA（厂内 tip）、OLD_BASE_SHA（merge-base(fork, 社区)）、
    NEW_BASE_SHA（要追的社区版本）。台账与 pick 全程用冻结值。
 2. 没有分类台账不开始 pick。台账 = 脚本生成的信号 + 人工定类，分类结论落盘进产物目录。
-3. B 类（模型专属）是否迁移相对交付模型判定：给 GLM 交付追新，K3 专属不迁；
-   K3 自己的分支追新，B 类照迁。台账里模型标签和类别是两个独立字段。
+3. pick 集相对交付判定，两根轴：**模型轴**——B 类只在交付就是该模型时迁（给 GLM
+   追新，K3 专属不迁；K3 自己追新照迁）；**特性轴**——特性绑定的 A 类改动只在交付
+   开启该特性时迁（不开多模态 EPD / AttentionStore / DSpark 整块跳过）。台账里
+   类别、模型标签、特性是三个独立字段。
 4. 丢弃要有证据。C1 的每一条要么标题带社区 PR 号，要么能在 NEW_BASE 里指到等价实现
    （rg 符号或文件）。厂内 pick 时常带私改：diff 厂内版与社区版，私改部分拆出来按
    A/B 类处置，不能凭标题相似整条丢。
@@ -73,8 +76,9 @@ cards_summary.md（卡片聚合）。HINT 只是关键词启发，**每张卡人
 
 ### 1 用户确认 pick 集
 
-拿台账问三件事：交付模型是什么（决定 B 类去留）；Cache 适配要不要（不开
-AttentionStore 就整类跳过，发版 YAML 同步去开关）；C2 工程物（ci.yml、Dockerfile、
+拿台账问三件事：交付模型是什么（决定 B 类去留）；交付开启哪些特性（多模态 EPD、
+AttentionStore、DSpark、VL——不开的特性块整块跳过，发版 YAML 同步去开关；开启且
+社区有 rival 实现的，先 diff 社区版再定搬什么）；C2 工程物（ci.yml、Dockerfile、
 单测流水）哪些跟着新镜像走。确认结果写进台账的 decision 列。
 
 ### 2 基线直换
@@ -145,6 +149,9 @@ A2+A3 一批……），别退回整支 squash——粒度是这条路线的核�
 
 - 「社区已收录」按标题判会误判：厂内 pick 时常改过签名或加过开关。证据是 NEW_BASE
   的实现覆盖厂内行为，不是标题相似。
+- 零冲突不等于该 pick：厂内特性栈（如 encode/EPD）常是与社区同名子系统的平行实现，
+  全 fork 独有文件、pick 必零冲突，但正确动作是取社区框架再搬 delta。rival 判定
+  优先于难度判定。
 - 台账把 fixup 当独立 PR，逐条 pick 是在重放噪声；先折叠。
 - 跳过 Cache 类却没动发版 YAML：起服务读不存在的开关，直接 fail fast 在参数校验。
 - 换了 Change-Id 的迭代会开出新评审；preflight 用 sibling skill 的 review_preflight.py。
