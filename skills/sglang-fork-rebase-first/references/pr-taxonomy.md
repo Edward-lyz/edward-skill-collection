@@ -69,10 +69,10 @@ PRIVATE/project/aiak_sglang/rebase_first_20260907/k3_pr_inventory.tsv。
 
 读法：
 
-- A1–A5 合计 128 提交 / 45,245 行，再按特性轴拆：**无条件核心仅 43 提交 / 5,060 行
+- A1–A5 合计 128 提交 / 45,245 行，再按特性轴拆：**无条件核心仅 41 提交 / 3,625 行
   （占全量 4%）**；多模态 EPD 栈 65 提交 / 24,287 行（社区有 rival，见问题 3）；
   AttentionStore 16 提交 / 14,801 行；DSpark/VL kernel 4 提交 / 1,097 行。
-  文本交付不开 AS/投机时，pick 集就是那 43 提交。
+  文本交付不开 AS/投机时，pick 集就是那 41 提交。逐颗还可再细分到拣选单元（core-link/core-metrics/core-model-opt/core-bugfix + feat-*/model-*），并用 git merge-tree --write-tree --merge-base=<父> <新基线> <提交> 逐颗做无副作用冲突预演；注意 sim 是单颗裸拣口径，组内按序连拣会比 sim 乐观。
 - C1 一类占了最大冲突面（227 文件次）：双方各有一份的内容在整支 merge 里全是
   add/add 与改动碰撞，在 rebase-first 里一行不用动。
 - A1 的 2.6 万行里 fork 独有文件过半（EPD/encode 平行栈），pick 本身接近零冲突——
@@ -86,7 +86,7 @@ PRIVATE/project/aiak_sglang/rebase_first_20260907/k3_pr_inventory.tsv。
 | | 旧路线（2026-08-27 实账） | 新路线（台账推演） |
 |---|---|---|
 | 第一步 | merge 社区进厂内，冲突 217 文件/590 块 | 从社区分支开 worktree，零冲突 |
-| 处理量 | 4,692 文件 / +485k 行一次落地 | 无条件核心 43 提交 / 5 千行 + 按特性勾选（EPD 2.4 万 / AS 1.5 万 / DSpark 1 千） |
+| 处理量 | 4,692 文件 / +485k 行一次落地 | 无条件核心 41 提交 / 3.6 千行 + 按特性勾选（EPD 2.4 万 / AS 1.5 万 / DSpark 2.5 千） |
 | K3/K2.x/V4 专属 | 43 提交 / 1.6 万行全部带上 | 不迁移 |
 | 社区已收录 | 227 文件次冲突的主要来源 | 免费消失 |
 | 送审形态 | 1 个 3,570 文件的 squash CR | 逐卡 change，保工单号与评审粒度 |
