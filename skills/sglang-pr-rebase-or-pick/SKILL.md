@@ -31,6 +31,7 @@ description: 把一个 fork 分支上选定的连续提交集成到目标分支�
 6. 不覆盖用户未提交的改动，不清理用户留下的冲突现场。
 7. 门禁跑全树，不只跑改过的文件。会静默存活的缺陷大多落在没有冲突的文件里。
 8. 落在交付目标必经路径上的继承缺陷同样是 blocker，不能以「父提交也这样」放行。
+9. 合并不发明。最终树相对两个父提交的每一行新增代码都必须有出处——上游父、fork 父（挪动的代码），或显式声明的台账源分支；重放台账特性前先把源分支列出来。确需新写的胶水由出处审计逐 hunk 处置；任何带行为的新增逻辑（优化、数值路径、缓存策略）不进 merge，单独开 change 走数值验证。
 
 ## 流程
 
@@ -88,7 +89,7 @@ E4  构建或集成测试
 E5  代表性运行时冒烟
 ```
 
-八个门禁是这个 skill 自带的。日常直接用 `scripts/run_gates.sh` 一把跑完，它把结果汇成一张表，可以直接贴进 CR 描述：
+九个门禁是这个 skill 自带的。日常直接用 `scripts/run_gates.sh` 一把跑完，它把结果汇成一张表，可以直接贴进 CR 描述：
 
 ```bash
 REPO="$WORKTREE" TARGET_SHA="$TARGET_SHA" SOURCE_SHA="$SOURCE_SHA" \
@@ -100,6 +101,8 @@ REPO="$WORKTREE" TARGET_SHA="$TARGET_SHA" SOURCE_SHA="$SOURCE_SHA" \
   FLAG_WAIVERS="$ARTIFACTS/gate-flag-waivers.tsv" \
   SYMBOL_WAIVERS="$ARTIFACTS/gate-symbol-waivers.tsv" \
   INTENT_WAIVERS="$ARTIFACTS/gate-intent-waivers.tsv" \
+  PROVENANCE_SOURCES="<台账源分支，空格分隔>" \
+  PROVENANCE_WAIVERS="$ARTIFACTS/gate-provenance-waivers.tsv" \
   bash "$SKILL_DIR/scripts/run_gates.sh"
 ```
 
@@ -107,9 +110,9 @@ REPO="$WORKTREE" TARGET_SHA="$TARGET_SHA" SOURCE_SHA="$SOURCE_SHA" \
 
 `intent_overlap_scan` 是八个里唯一只读两个冻结父提交的，合并前后跑出来一样，所以它既是合并前的隔离清单，也是合并后的「这些对子你处置了吗」检查表。
 
-已经判过的发现写进 waiver 文件，格式是 `名字<TAB>理由`，没写理由的行不生效。`flag_inventory` 收 DROPPED / NO-OP 的豁免，`absent_symbol_triage` 收 REAL-LOSS 的豁免，`intent_overlap_scan` 收已处置的意图冲突对（键是 fork 短 SHA）。这样门禁对新发现仍然会红，判过的东西不必每轮重判，而且理由本身就是 CR 里的处置记录。waiver 是每次合并的数据，跟产物放一起，不进 skill 仓库。
+已经判过的发现写进 waiver 文件，格式是 `名字<TAB>理由`，没写理由的行不生效。`flag_inventory` 收 DROPPED / NO-OP 的豁免，`absent_symbol_triage` 收 REAL-LOSS 的豁免，`intent_overlap_scan` 收已处置的意图冲突对（键是 fork 短 SHA）。`provenance_audit` 收无出处胶水 hunk 的豁免（键是文件路径）。这样门禁对新发现仍然会红，判过的东西不必每轮重判，而且理由本身就是 CR 里的处置记录。waiver 是每次合并的数据，跟产物放一起，不进 skill 仓库。
 
-单独跑的话，其余七个门禁的命令如下（`intent_overlap_scan` 见上面「先隔离意图冲突对」）：
+单独跑的话，其余八个门禁的命令如下（`intent_overlap_scan` 见上面「先隔离意图冲突对」）：
 
 ```bash
 # import 可解析性：模块被上游改名、符号没补齐、同名 import 互相覆盖
@@ -174,6 +177,17 @@ python3 "$SKILL_DIR/scripts/orphan_scan.py" \
 
 `orphan_scan.py` 的结论用来执行「不要的能力就跟着上游删掉」：ORPHAN 行（没有 importer、名字在别处也不出现、且不读任何发版 YAML 传的开关）直接删文件，别留到下次合并再冲突一遍；DYNAMIC-MAYBE 行意味着名字出现在字符串里，可能被 registry 或 importlib 拉起来，必须人工确认后再动；IN-USE 行不许删。删完重跑 import 门禁。
 
+```bash
+# 出处审计：最终树里两个父提交和台账源分支都找不到的新增行
+python3 "$SKILL_DIR/scripts/provenance_audit.py" \
+  --repo "$WORKTREE" --target "$TARGET_SHA" --source "$SOURCE_SHA" --final HEAD \
+  --extra-source <台账源分支，可重复> \
+  --waiver-file "$ARTIFACTS/gate-provenance-waivers.tsv" \
+  --output "$ARTIFACTS/provenance-audit.md"
+```
+
+`provenance_audit.py` 回答「这行代码是谁的」：把 target..final 的全部新增行，与两个父提交加台账源分支的全量代码行做归一化匹配，剩下的 unmatched hunk 就是合并现场写出来的代码。不带 --extra-source 是严格模式，重放台账特性之前先跑一遍，逼每个 hunk 报出台账来源；带上台账源分支之后仍然 unmatched 的，只剩胶水和夹带。高危路径（layers/、mem_cache/、sgl-kernel/）上不少于 3 行的无出处 hunk 是 blocker。匹配以行为单位，常见单行会撞车漏报，所以审的单位是 hunk 而不是行，短 hunk 只列不拦。
+
 测试差分是这三个里命中率最高的一个：有冲突的每个子系统都要在最终树和两个父提交上跑同一批测试。只在最终树失败的用例是 merge 缺陷；和父提交共有的失败属于继承下来的债，不扩大范围；两个父提交都没有的用例单独标注待人工判定。父提交环境跑不起来就记 deferred，不要只拿最终树的结果当证据。
 
 最后固定跑一遍：
@@ -223,3 +237,4 @@ git push origin "$SQ:refs/for/$TARGET_BRANCH"
 - 双方都做过同一个能力的提交对，合并时最容易两份实现都留下，而且不产生冲突；合并前先扫一遍，别指望合并后的门禁在几百个符号里帮你捞。
 - 看起来只做输出格式化的参数（例如 `--reasoning-parser`）删掉之后坏的往往不是格式而是 function call。这类参数按「谁在消费它的输出」判，不能按名字判。
 - 「同一条请求直连引擎正常、走网关不正常」不等于网关有问题：引擎侧会从转发来的字段合成 `chat_template_kwargs`，走网关的流量天然多带字段。先在裸 token、直连、经网关三个观测点各打一次，再决定改谁的代码。
+- 重放台账特性会把其它交付线在共享基础设施文件（MoE runner、量化、cache）里的行为变更一起带进来：不产生冲突、结构门禁全绿、diff 淹没在特性代码里。GLM5.3 合并从 kimi-k3 线带入的 contiguous grouped GEMM 前置路径就这样造成长文精度回归，事后靠出处审计才定位。

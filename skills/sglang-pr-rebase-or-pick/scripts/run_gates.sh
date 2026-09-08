@@ -26,6 +26,8 @@
 #   SYMBOL_WAIVERS   dispositioned REAL-LOSS symbols: symbol<TAB>reason
 #   INTENT_WAIVERS   dispositioned rival commit pairs: fork_short<TAB>reason
 #   INTENT_MAX_COMMITS  per-side scan cap for intent_overlap_scan (default 400)
+#   PROVENANCE_SOURCES  space-separated ledger refs replayed features come from
+#   PROVENANCE_WAIVERS  dispositioned provenance hunks: path<TAB>reason
 #   MODE             pick or squash (default squash)
 #   PYTHON           interpreter (default python3)
 set -uo pipefail
@@ -49,6 +51,8 @@ FLAG_WAIVERS="${FLAG_WAIVERS:-}"
 SYMBOL_WAIVERS="${SYMBOL_WAIVERS:-}"
 INTENT_WAIVERS="${INTENT_WAIVERS:-}"
 INTENT_MAX_COMMITS="${INTENT_MAX_COMMITS:-400}"
+PROVENANCE_SOURCES="${PROVENANCE_SOURCES:-}"
+PROVENANCE_WAIVERS="${PROVENANCE_WAIVERS:-}"
 MODE="${MODE:-squash}"
 REVIEW_BASE_SHA="${REVIEW_BASE_SHA:-$TARGET_SHA}"
 mkdir -p "$ARTIFACTS"
@@ -130,6 +134,16 @@ run_gate orphan-scan "$ARTIFACTS/orphan-scan.md" \
   "$PYTHON" "$SKILL_DIR/scripts/orphan_scan.py" --repo "$REPO" \
   --target "$TARGET_SHA" --source "$SOURCE_SHA" "${final_args[@]}" \
   "${deploy_args[@]}" --output "$ARTIFACTS/orphan-scan.md"
+
+prov_source_args=()
+for ref in $PROVENANCE_SOURCES; do prov_source_args+=(--extra-source "$ref"); done
+prov_waiver_args=()
+[[ -n "$PROVENANCE_WAIVERS" ]] && prov_waiver_args=(--waiver-file "$PROVENANCE_WAIVERS")
+run_gate provenance-audit "$ARTIFACTS/provenance-audit.md" \
+  "$PYTHON" "$SKILL_DIR/scripts/provenance_audit.py" --repo "$REPO" \
+  --target "$TARGET_SHA" --source "$SOURCE_SHA" --final "${FINAL_REV:-HEAD}" \
+  "${prov_source_args[@]}" "${prov_waiver_args[@]}" \
+  --output "$ARTIFACTS/provenance-audit.md"
 
 if [[ -n "$TEST_COMMAND" ]]; then
   collect_args=()
