@@ -1,6 +1,6 @@
 ---
 name: sglang-fork-rebase-first
-description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。先把 fork 相对旧基线的提交按七类台账化（链路适配、监控适配、Cache 适配、通用模型优化、通用 BUGFIX、具体模型优化、具体模型 BUGFIX），社区已收录直接丢弃、非交付模型的专属改动不迁移、特性绑定的改动（多模态 EPD/Cache/投机）按交付特性清单取舍，剩余按原始拓扑序逐卡 pick 到新基线。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
+description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。先把 fork 相对旧基线的提交按七类台账化（链路适配、监控适配、Cache 适配、通用模型优化、通用 BUGFIX、具体模型优化、具体模型 BUGFIX），社区已收录直接丢弃、非交付模型的专属改动不迁移、特性绑定的改动（多模态 EPD/Cache/投机）按交付特性清单取舍，剩余按原始拓扑序逐卡 pick 到新基线；交付镜像的四件套（ci.yml + build/build.sh + dockerfile/）照厂内已有交付分支的格式改并放在栈底，继承来的每一步按 base 专属 / 运行时通用 / 版本锚判类。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
 ---
 
 # 追社区：基线直换 + 台账化重放
@@ -128,7 +128,39 @@ python3 "$SIBLING/scripts/import_audit.py" --repo "$WORKTREE" \
   的 NEW 段会报。
 - C1 丢弃后的行为差：厂内 pick 版与社区收录版不一致的私改，确认已按硬规则 4 拆出。
 
-### 6 发布
+### 6 交付镜像四件套
+
+C2 里的镜像改动按厂内已有格式改：`ci.yml`、`build/build.sh`、`dockerfile/Dockerfile`、
+`dockerfile/gpu_requirements.env`，模板取 origin 上**同类 base**（社区镜像 / 厂内
+aiak-inference 镜像）的最近交付分支。DSv4.1 那次我另造了 `dockerfile/Dockerfile.dsv41`
++ `dockerfile/build_dsv41.sh`，流水线按固定路径取文件、自创的名字它不看，整卡被打回重做。
+
+这一卡放在**栈底**。社区树里没有 ci.yml，基线直换后它必缺，而每个 change 的 CI 各自
+checkout 自己那条 ref，排在它之后的卡才继承得到；漏了的表现是流水线一开工就停在
+`can not get ci.yml from iCode`。
+
+换 base 时把模板里继承来的每一步过一遍三分法：
+
+| 类 | 判据 | 处置 |
+|---|---|---|
+| base 专属 | 这步操作的包或文件只存在于旧 base | 删，并在 Dockerfile 头注释写清替代做法 |
+| 运行时通用 | 厂内环境要求，与模型无关 | 原样保留 |
+| 版本锚 | 值绑在某个 base 上：版本号、dist-packages 路径、cuda12/13 wheel 变体 | 构建时从 base 现取，或按新 base 重挑 |
+
+代价不对称：base 专属项留着，构建当场失败（patch 找不到目标文件）；运行时通用项删掉，
+要等上线才发现（平台钩子失效、PD 起不来）。所以先扫一遍「这步碰的包在新 base 里存在吗」，
+再判剩下的。
+
+```bash
+bash "$SKILL_DIR/scripts/check_image_layout.sh" "$DELIVERY_TIP" "$NEW_BASE_SHA" "$TEMPLATE_BRANCH"
+```
+
+脚本查四件套在位与 mode、ci.yml 与 build.sh 与模板同 blob、相对新基线只多这四个文件、没有
+`Dockerfile.<x>` / `build_<x>.sh` 这类自创名、Dockerfile 的 COPY 源都在 `aiak_sglang/` 下。
+完成判据：脚本零退出码。本机没有 docker 时到此为止，镜像构建与上机冒烟记 deferred。
+逐步继承清单与两种 COPY 策略见 references/delivery-image.md。
+
+### 7 发布
 
 逐卡走 refs/for 送审，一卡一个 change。评审系统限单批数量时按类分批（A1 一批、
 A2+A3 一批……），别退回整支 squash——粒度是这条路线的核心收益。
@@ -159,4 +191,7 @@ A2+A3 一批……），别退回整支 squash——粒度是这条路线的核�
   重放，fixup 在 worktree 里 autosquash。
 - 台账枚举用 --no-merges 会漏掉 merge commit 本身携带的解冲突改动；上一代分支若有
   内部 merge，重放后跑 git diff FORK_SHA..HEAD -- <路径> 抽查关键子系统是否有语义残差。
-
+- `.gitignore` 的 `**/build/` 会挡住 `build/build.sh`，`git add -f` 才进得去；厂内交付
+  分支也是这么进的，所以 git ls-tree 看得到它而 git add 会拒。
+- 改动四件套那一卡会让它后面的卡全部换 SHA、跟着升 patchset。送审前 diff 一次 Change-Id
+  集合，确认没有多开 change。
