@@ -326,3 +326,12 @@ A2+A3 一批……），别退回整支 squash——粒度是这条路线的核�
   必须用 model_name 标签核对归属再下结论。
 - 冷启动后请求侧指标家族为空是 prometheus multiprocess 的正常表现，不是漏迁；先打
   一个成功请求再取 /metrics。
+- 上一轮解过的冲突会被 rerere 整文件顶回来：同一处冲突再现时 git 直接写入上个交付
+  分支那次的 postimage，与本卡无关的 hunk 一起进来（实测：pick 一行 media 收紧，
+  顺带多出 CLIENT_MEDIA_EXCEPTIONS 加 OSError）。第一次看冲突用
+  `git -c rerere.enabled=false cherry-pick`，解完 `git diff HEAD` 逐 hunk 核对只剩本卡的行。
+- 一行改动照搬前先查新基线上谁在喂这个函数，同一行的语义可能反过来：厂内把
+  get_image_bytes 的裸 `/` 分支删掉做收紧，而新基线的 load_image 已改成先剥 file://
+  再把纯路径传下去，照搬后留下的 file:// 分支不可达、真正在用的裸路径分支被删，仓库
+  自带的 registered 测试还把旧契约钉着。判据是 rg 出全部调用点，看清谁剥 scheme、
+  谁读文件，再决定照搬 / 改写 / 放弃。
