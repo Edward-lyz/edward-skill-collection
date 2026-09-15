@@ -1,6 +1,6 @@
 ---
 name: sglang-fork-rebase-first
-description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。先把 fork 相对旧基线的提交按七类台账化（链路适配、监控适配、Cache 适配、通用模型优化、通用 BUGFIX、具体模型优化、具体模型 BUGFIX），社区已收录直接丢弃、非交付模型的专属改动不迁移、特性绑定的改动（多模态 EPD/Cache/投机）按交付特性清单取舍，剩余按原始拓扑序逐卡 pick 到新基线；交付镜像的四件套（ci.yml + build/build.sh + dockerfile/）照厂内已有交付分支的格式改并放在栈底，继承来的每一步按 base 专属 / 运行时通用 / 版本锚判类。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
+description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。先把 fork 相对旧基线的提交按七类台账化（链路适配、监控适配、Cache 适配、通用模型优化、通用 BUGFIX、具体模型优化、具体模型 BUGFIX），社区已收录直接丢弃、非交付模型的专属改动不迁移、特性绑定的改动（多模态 EPD/Cache/投机）按交付特性清单取舍，剩余按原始拓扑序逐卡 pick 到新基线；重放完成后按平台契约反向核对路由全集、启动参数、指标 label 与环境变量读取点；交付镜像的四件套（ci.yml + build/build.sh + dockerfile/）照厂内已有交付分支的格式改并放在栈底，继承来的每一步按 base 专属 / 运行时通用 / 版本锚判类。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
 ---
 
 # 追社区：基线直换 + 台账化重放
@@ -160,7 +160,131 @@ bash "$SKILL_DIR/scripts/check_image_layout.sh" "$DELIVERY_TIP" "$NEW_BASE_SHA" 
 完成判据：脚本零退出码。本机没有 docker 时到此为止，镜像构建与上机冒烟记 deferred。
 逐步继承清单与两种 COPY 策略见 references/delivery-image.md。
 
-### 7 发布
+### 7 监控与平台契约反向核对
+
+台账是从 fork 提交出发的正向流程，它只能保证「我们挑中的都搬了」，保证不了「平台
+依赖的都还在」。监控、探针、采集开关这几类东西的宿主在平台侧：平台按固定路由探活、
+按固定指标名画图、按固定启动参数开采集。所以重放完成后必须再做一遍**反向核对**——
+从平台契约出发回查代码和发版 YAML。DSv4.1 那次跳过这一步的代价是平台探针拿到 404、
+POD 永远不进服务列表，白等一轮 12 分钟冷启动才发现。
+
+**1. 路由全集 diff（探活与自愈契约）**
+
+```bash
+routes() { git grep -oh -E "@app\.(get|post|put|delete)\(\"[^\"]+\"" "$1" \
+  -- python/sglang/srt/entrypoints | sed 's/.*("//' | sort -u; }
+comm -23 <(routes "$PREV_DELIVERY_REF") <(routes HEAD)
+```
+
+差集必须为空。主 server 和 dummy/备用 server 的路由集要分别取——DSv4.1 那次主
+server 41 条、dummy 40 条，少的正好是 `/ready`。
+
+`/ready` 为什么会正向漏掉，值得记住：台账里 `073d8e98d8 luno-4515` 那行的 evidence
+自己写着 `/ready forwarding dropped`，重放时只搬了同一 commit 里的
+`/get_instance_info`，把 `/ready` 当「缺宿主」丢了；而 `/ready` 最早是通过
+`147c4e45af Pick aiak code 0522` 这类批量搬运提交进 fork 的，清单消噪规则专门跳过
+这种提交，正向台账天然看不见它。
+
+**2. 启动参数反查（采集开关契约）**
+
+参考 YAML 不是参数契约。老交付 YAML 里的参数可能来自更老的引擎或更老的分支，照抄
+会让容器直接以 `sglang serve: error: unrecognized arguments` 退出。必须对着**这次
+要出的镜像**的 argparse 反查：
+
+```bash
+python3 "$SKILL_DIR/scripts/check_launch_args.py" --repo "$WORKTREE" \
+  --yaml <发版 YAML> [--yaml ...]
+```
+
+脚本用 ast 取 `python/sglang/srt/arg_groups/fields/*.py` 各 dataclass 的字段名，
+并集全仓库 `add_argument("--x")`，得到可识别参数全集，再从 YAML 的容器启动脚本里抽
+`--xxx` 求差集。DSv4.1 那次抓到两个：
+
+- `--collect-tokens-histogram`：社区 `6344b546c8 Deprecate --collect-tokens-histogram,
+  auto-collect with --enable-metrics (#23595)` 已删除，token 直方图改成开
+  `--enable-metrics` 就自动采，分桶用 `--prompt-tokens-buckets` /
+  `--generation-tokens-buckets`。
+- `--disaggregation-zmq-ports` / `--disaggregation-zmq-max-sockets`：厂内
+  `ed3362f22c luno-3729` 的私有参数，`git branch --contains` 显示只活在
+  `glm-0312-w4-v0.5.16-replay` 一条老线上，新基线和上一版交付分支都不认。
+
+判据三分，别一律删也别一律迁：社区删掉且能力已默认开启就删参数；厂内私有参数而这次
+确实需要，就把那笔厂内提交按 A 类补迁；厂内私有而这次不需要，删参数并在台账里记一行
+「能力缺失，需要时迁 \<SHA\>」。
+
+**3. 指标 label 集合逐字比对（画图契约）**
+
+面板的 PromQL 按 label 选择序列，label 少一个图就空。取上一版交付分支和新分支的同一
+处 label 字典比：
+
+```bash
+for ref in "$PREV_DELIVERY_REF" HEAD; do
+  git show $ref:python/sglang/srt/observability/metrics_collector.py | rg -n "labels = \{" -A 10
+done
+```
+
+DSv4.1 这次逐字一致：`model_name / engine_type / tp_rank / pp_rank / moe_ep_rank`，
+条件项 `priority`（开优先级调度）和 `dp_rank`（DP > 1）。
+
+**4. 厂内环境变量读取点 diff**
+
+平台注入的 `AIAK_*` 之类环境变量，若在新基线里找不到读取点就是静默失效。取两个 ref
+的 `os.getenv` / `envs.` 名字集合求差。
+
+#### 读指标时的三个陷阱
+
+1. **hostNetwork 下 IP 会串台。** POD IP == 节点 IP，POD 重建或被回收后同一个 IP 上
+   跑的是别人的服务。DSv4.1 这次我把两个节点 IP 上别人的 DeepSeek / Kimi 服务当成
+   自己的，据此得出「tokenizer 侧指标全缺」的错误结论。取数前先
+   `kubectl get pods -o wide` 核 IP 归属，再用 `/metrics` 里的 `model_name` 标签
+   （= `--served-model-name` / `MODEL_ID`）二次确认。
+2. **带 label 的指标要等第一次观测才出现。** `/metrics` 走 prometheus multiprocess
+   模式（`PROMETHEUS_MULTIPROC_DIR` + `MultiProcessCollector`），Histogram / Counter
+   只有 `.labels()` 被调用过才落进 mmap 文件。冷启动后没打过请求时，请求侧指标家族
+   本来就是空的，不能据此判缺失。验证顺序固定：先打一个成功请求，再取 `/metrics`。
+3. **调度器侧和请求侧是两个 collector，别混着判。** `SchedulerMetricsCollector` 出
+   `num_running_reqs / gen_throughput / kv_*`，只要 `--enable-metrics` 就有；
+   `TokenizerMetricsCollector` 出 `time_to_first_token_seconds /
+   e2e_request_latency_seconds / prompt_tokens_histogram /
+   generation_tokens_histogram / num_requests_total`，还要请求真的走过 tokenizer
+   manager 才有。
+
+PD 分离下的不对称是设计好的，不是缺失：`collect_metrics` 里 ITL 只在非 PREFILL 侧记
+（`elif self.disaggregation_mode != DisaggregationMode.PREFILL`），TTFT 两侧都记。
+这是厂内 luno-3716 两笔（`5063a923df ttft metric in prefill`、
+`1058353184 Remove itl metric in prefill`）的效果，核对时别把 prefill 侧没有 ITL 当
+成漏迁。
+
+#### 监控类台账怎么记
+
+监控类整体倾向必迁：DSv4.1 那批 6 笔全部 replayed（itl、ttft、abort with multi
+tokenizer、detokenizer_to_tokenizer、generation time、unified log schema）。唯一
+一笔 `13cdb6224c Trace tool integration` 是 replayed in part，留下 KV-dump 的
+TraceManager 及其 io_struct / scheduler 管线，理由是它属调试工具、与
+`observability/trace.py` 是平行实现。
+
+**部分重放必须在台账 evidence 里写清留下的是什么、为什么、需要时从哪笔捡回来**，
+否则下一轮没人分得清那块能力是有意不要还是漏了。
+
+「缺宿主」的处置同样要收口：重放某笔时如果它的一部分改动在新基线里找不到宿主，两条
+出路——补宿主（按 sibling skill 的 L2/L9 把行为接到新结构上），或者显式在台账里登记
+为阻塞项并写明平台影响。不允许静默丢弃，`/ready` 就是静默丢弃的代价。
+
+#### 发版 YAML 的监控必查项
+
+- `--enable-metrics`：缺了 `add_prometheus_middleware` 不挂 `/metrics`，
+  `init_metric_collector_watchdog` 也不建 collector，两侧指标全无。
+- `--enable-cache-report`：cache 命中类指标的开关。
+- 平台注册标签四件套 `ernie-ops.baidu-int.com/{feddeploy-name,
+  inference-service-name,model-name,platform}` 必须填平台注册过的服务名，自创名字
+  的后果是网关找不到后端（踩过），区分谁的实例靠 `MODEL_ID` 而不是改服务名。
+- 探针路径与代码里真实存在的路由对齐（`/ready`、`/health_forward`）。
+- 手工 `kubectl apply` 的 fed 不带平台的 `ernie-ops.baidu-int.com/update-by-job`
+  注解，是否影响监控清单收录需平台侧确认——这条未证实，按疑点记录，别当结论。
+
+完整案例证据与命令回执见 references/monitoring-contract.md。
+
+### 8 发布
 
 逐卡走 refs/for 送审，一卡一个 change。评审系统限单批数量时按类分批（A1 一批、
 A2+A3 一批……），别退回整支 squash——粒度是这条路线的核心收益。
@@ -195,3 +319,10 @@ A2+A3 一批……），别退回整支 squash——粒度是这条路线的核�
   分支也是这么进的，所以 git ls-tree 看得到它而 git add 会拒。
 - 改动四件套那一卡会让它后面的卡全部换 SHA、跟着升 patchset。送审前 diff 一次 Change-Id
   集合，确认没有多开 change。
+- 参考 YAML 的启动参数不是契约：老交付 YAML 会带着更老引擎或更老分支的私有参数，
+  照抄的表现是容器以 unrecognized arguments 直接退出。每次换基线用
+  scripts/check_launch_args.py 对新镜像的 argparse 反查一遍。
+- hostNetwork 下按 IP 取 /metrics 会串台：POD 重建后同一个节点 IP 上是别人的服务，
+  必须用 model_name 标签核对归属再下结论。
+- 冷启动后请求侧指标家族为空是 prometheus multiprocess 的正常表现，不是漏迁；先打
+  一个成功请求再取 /metrics。
