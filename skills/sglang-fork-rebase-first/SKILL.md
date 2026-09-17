@@ -231,6 +231,49 @@ DSv4.1 这次逐字一致：`model_name / engine_type / tp_rank / pp_rank / moe_
 平台注入的 `AIAK_*` 之类环境变量，若在新基线里找不到读取点就是静默失效。取两个 ref
 的 `os.getenv` / `envs.` 名字集合求差。
 
+**5. 面板清单反查（画图契约的上位做法）**
+
+label 比对只保证 series 选得到，保证不了每张图有数。指标名要从 dashboard 的 JSON 取，
+不要按面板标题猜：`<dashboard-url>&editview=dashboard_json`，焦点给 Monaco 的
+`.monaco-editor textarea` 全选复制，落盘后解析成「面板 → 指标名 → label 过滤」的映射。
+（`/api/dashboards/uid/<uid>` 会被浏览器侧拦，页面内只读求值环境也没有 fetch。）同一个
+dashboard 常被多个 model 共用（DSv4.1 与厂内 K3 就是同 uid 换 `var-model_id`），所以
+「对齐某个模型的面板状态」= 让我们的 model_id 在同一组查询下有数，不是抄它的指标清单。
+
+空面板按五类定性，判据先行，别一律当代码缺失：
+
+- **A 缺观测点**：族在但少一侧。PD 两端语义不同的量必须两端各观测一次——
+  `kvcache_transfer_time` 我们只在 prefill 侧观测，D 实例面板过滤 `pod=~".*decode.*"`
+  恒空；补上 decode 侧后两端分别是等待与发送耗时。
+- **B label 值不匹配**：面板要 `cache_source="storage_MooncakeStore"`，我们打扁平
+  `storage`。改 label 值会同时打断既有查询和钉着旧值的单测，要一起改并在说明里标不兼容。
+- **C label 集由拓扑决定**：DP 面板全过滤 `dp_rank="0"`，而 `dp_rank` 只在
+  `dp_rank is not None`（DP attention / dp_size>1）时进 label 字典。这类是部署选择，
+  不是代码缺陷，参照模型的 dump 里往往同样没有。
+- **D 部署开关未开**：EPD（`mm_receiver_*`、`gpu_buffer_pool_*`）、HiCache
+  （`cache_source="host"`）、L3 storage 各有自己的创建条件，代码在也不会有值。
+- **E 计数器未预热**：带 label 的 Counter 首次观测前不出现，健康实例上是 No data 而不是
+  0。abort / bootstrap 失败 / transfer 失败 / 驱逐这几个都要在构造时 `inc(0)`。
+- **F 看板自身写错**：`num_used_tokens[1m] / num_running_reqs[1m]` 两侧 range vector
+  相除，PromQL 非法，对任何 model 都空。报看板 owner，别在引擎侧找原因。
+
+对齐不等于照抄坏实现：参照分支的 `engine_startup_time` / `engine_load_weights_time` 是
+硬编码 0，我们从 `init_startup_timing_summary` 取真值发（`emit_metrics_constants` 跑在
+启动计时汇总之前，放那儿只能发 0）；对方恒 0 的死指标（如无离线批队列的
+`num_running_reqs_offline_batch`）记「结构性不发」，别造永远 0 的 gauge。
+
+**6. 监控代码的高危写法自查**
+
+迁完监控代码按这七条扫一遍，前三条会直接打挂服务：属性名错写成 `self.enable_metrics`
+（本基线只有 `self.metrics_reporter.enable_metrics`，第一个真实请求即 AttributeError →
+SIGQUIT → P/D 双双重启）；时间戳 helper 缺 DECODE 分支隐式返回 None（
+`Histogram.observe(None)` TypeError 炸在批结果主循环）；msgspec Struct 配 Union 形参时
+漏 `isinstance` 守卫（未声明字段不能动态赋值，embedding / rerank 请求直接失败）。另外
+四条是数值失真：跨进程时间戳用 `perf_counter`（原点按主机，多机部署无意义，要用 wall
+clock）；计时行落在 `if/elif` 之外（把本地准备耗时当集合通信延迟）；除法不兜零（同一
+文件里隔壁用了 `max(1, ...)` 就是漏改信号）；首 tick 时间戳还是 0 时相减（把进程 uptime
+当迭代耗时）。
+
 #### 读指标时的三个陷阱
 
 1. **hostNetwork 下 IP 会串台。** POD IP == 节点 IP，POD 重建或被回收后同一个 IP 上
@@ -284,10 +327,26 @@ TraceManager 及其 io_struct / scheduler 管线，理由是它属调试工具�
 
 完整案例证据与命令回执见 references/monitoring-contract.md。
 
+#### 不重启 POD 的监控验收
+
+sleep 模式的 pod（主进程 `sleep inf`、探针已删、服务手动起）可以只热替文件加重起服务，
+把一次监控改动的验收压到分钟级。可信度靠三方 md5：pod 里的文件对上老栈某个 commit，
+`git diff --numstat <老> <新>` 的逐文件增删行对上 commit stat，替完的 md5 对上本地
+worktree——三者齐了才能说「逐文件热替等价于精确打进那一个 commit」。替前备份到
+`/shared/backup_<round>/`，替后清 `__pycache__` 并用容器内解释器 `ast.parse` 过语法。
+取数要在造过流量之后，按族名（去掉 `_bucket` / `_count` / `_sum` / `_total`）做前后 diff，
+并把流量带出来的族与本次改动带出来的族分开。
+
 ### 8 发布
 
 逐卡走 refs/for 送审，一卡一个 change。评审系统限单批数量时按类分批（A1 一批、
 A2+A3 一批……），别退回整支 squash——粒度是这条路线的核心收益。
+
+改已推过的评审必须保留原 Change-Id：换消息文件时 commit-msg hook 会生成新的，icode 会拒
+并提示 `git fetch ... refs/changes/<nn>/<change>/<ps>` 重放；带原 Change-Id 再
+`git commit --amend` 就是正常的下一个 patchset。LLM 评审的 BLOCK 报告逐条核实再改，本轮
+9 条里 2 条是误报（同一把锁被当成两把、只在字段为 0 时赋值的时间戳被当成覆盖写），误报
+也要把判据写进回复。
 
 ## 难度预判（分级用信号，不用感觉）
 
