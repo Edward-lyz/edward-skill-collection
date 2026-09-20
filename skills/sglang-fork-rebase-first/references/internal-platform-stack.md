@@ -60,13 +60,15 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 
 - **路由**：`/ready`、`/health_forward`、`/get_instance_info`，主 server 与 dummy health
   server 两套都要有。
-- **指标**：33 个 `sglang:` 族，重点是 PD 两端各观测一次的 `kvcache_transfer_time`、
-  `time_to_first_token_seconds`，以及四个必须 `inc(0)` 预热的计数器。
-- **日志**：`levelname` 前置 + 组件前缀（Server / TokenizerManager / DetokenizerManager /
-  DPController / 每个 spawn 出来的 tokenizer worker）。
-- **环境变量**：`AIAK_STOP_SIGNAL_DIR`、`MASTER_IP`、`CD_*`(7 个)、
-  `SGLANG_TOOL_CALL_EMPTY_RETURN_INTERVAL`、`SGLANG_LOG_REQUEST_TRACE`、
-  `SGLANG_LOG_TOKEN_IDS`、`SGLANG_ENABLE_TOOL_SCHEMA_REF_EXPANSION`(默认关)、
+- **指标**：包里出现 33 个 `sglang:` 族名（新增、旧名别名与 `inc(0)` 预热三种都算），重点是
+  PD 两端各观测一次的 `kvcache_transfer_time` 与 `time_to_first_token_seconds`，以及四个必须
+  预热的计数器：abort、bootstrap 失败、transfer 失败、驱逐。
+- **日志**：`levelname` 前置，加四类组件前缀——`Server`（uvicorn 的两种格式）、
+  `DPController`、`Detokenizer`、`Tokenizer <pid>`（每个 spawn 出来的 tokenizer worker）。
+- **环境变量**：15 个。`AIAK_STOP_SIGNAL_DIR`、`MASTER_IP`、`CD_*` 8 个（检测开关、窗口、
+  间隔、复读参数、trace dump 目录）、`SGLANG_TOOL_CALL_EMPTY_RETURN_INTERVAL`、
+  `SGLANG_LOG_REQUEST_TRACE`、`SGLANG_LOG_TOKEN_IDS`、
+  `SGLANG_ENABLE_TOOL_SCHEMA_REF_EXPANSION`(默认关)、
   `SGLANG_ENABLE_TOOL_SCHEMA_ID_NORMALIZATION`(默认开)。
 
 ## 用法
