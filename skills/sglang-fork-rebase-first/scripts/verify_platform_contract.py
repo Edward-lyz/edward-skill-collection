@@ -54,12 +54,15 @@ KIND_TITLES = {
 
 @dataclass(frozen=True)
 class Capability:
+    """契约里的一项能力：类别、身份，以及当时的证据文件。"""
+
     kind: str
     key: str
     where: str
 
     @property
     def ident(self) -> Tuple[str, str]:
+        """集合运算用的身份。证据文件会随基线变，不参与比对。"""
         return (self.kind, self.key)
 
 
@@ -73,6 +76,7 @@ class Snapshot:
 
 
 def git(repo: Path, *args: str, allow_no_match: bool = False) -> str:
+    """在 repo 上跑 git 取 stdout。allow_no_match 让 git grep 的「无命中」不算失败。"""
     proc = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
@@ -273,6 +277,7 @@ class FileScan:
 
 
 def wanted_env(name: str, prefixes: Sequence[str], names: Sequence[str]) -> bool:
+    """这个环境变量是否属于厂内关心的范围：命中前缀，或在显式名单里。"""
     return name in names or any(name.startswith(p) for p in prefixes)
 
 
@@ -335,6 +340,7 @@ def extract(
 
 
 def emit(args: argparse.Namespace) -> int:
+    """生成契约：交付 ref 的能力集减去它所基于的社区基线的能力集。"""
     repo = Path(args.repo)
     delivery = extract(
         repo, args.ref, args.env_prefix, args.env_name, args.dummy_server_func
@@ -383,6 +389,7 @@ def emit(args: argparse.Namespace) -> int:
 
 
 def verify(args: argparse.Namespace) -> int:
+    """拿契约核对候选 ref，逐项给 PASS / MISSING / 无写入点，缺项即非零退出。"""
     repo = Path(args.repo)
     contract = json.loads(Path(args.contract).read_text(encoding="utf-8"))
     wanted = [
@@ -449,6 +456,7 @@ def verify(args: argparse.Namespace) -> int:
 
 
 def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
+    """解析命令行，并补上两个模式各自的必填项检查。"""
     parser = argparse.ArgumentParser(description=SUMMARY)
     parser.add_argument("--repo", required=True, help="仓库或 worktree 路径")
     parser.add_argument("--ref", default="HEAD", help="被提取 / 被核对的 ref")
@@ -478,6 +486,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 
 
 def main() -> int:
+    """入口：按 --emit 决定是生成契约还是核对契约。"""
     args = parse_args()
     return emit(args) if args.emit else verify(args)
 

@@ -56,7 +56,7 @@ def collect_yaml_args(path: Path) -> set[str]:
     try:
         import yaml
     except ImportError:
-        raise SystemExit("需要 PyYAML：pip3 install pyyaml")
+        raise SystemExit("需要 PyYAML：pip3 install pyyaml") from None
 
     used: set[str] = set()
     for doc in yaml.safe_load_all(path.read_text(encoding="utf-8")):
@@ -79,6 +79,7 @@ def collect_yaml_args(path: Path) -> set[str]:
 
 
 def main() -> int:
+    """入口：算出目标基线的可识别参数全集，与每个发版 YAML 的启动参数求差。"""
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", required=True, help="目标基线的仓库或 worktree 根")
     parser.add_argument("--yaml", action="append", required=True, help="发版 YAML，可重复")

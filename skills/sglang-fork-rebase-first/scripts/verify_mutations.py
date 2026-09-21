@@ -28,6 +28,8 @@ SRT = "python/sglang/srt"
 
 @dataclass(frozen=True)
 class Mutation:
+    """一条变异：改哪个文件的哪一段、是否期望被拦住、这类缺陷在线上的样子。"""
+
     name: str
     kind: str            # 对应契约里的能力类，盲点写 "-"
     path: str
@@ -93,6 +95,7 @@ MUTATIONS: List[Mutation] = [
 
 
 def git(repo: Path, *args: str) -> str:
+    """在 repo 或 worktree 上跑 git 取 stdout，失败即终止。"""
     proc = subprocess.run(
         ["git", "-C", str(repo), *args], capture_output=True, text=True, check=False
     )
@@ -102,6 +105,7 @@ def git(repo: Path, *args: str) -> str:
 
 
 def run_verify(script: Path, worktree: Path, contract: Path) -> subprocess.CompletedProcess[str]:
+    """在 worktree 上跑一次存在性核对，返回带退出码的结果。"""
     return subprocess.run(
         [
             sys.executable, str(script),
@@ -127,6 +131,7 @@ def apply_mutation(worktree: Path, mutation: Mutation) -> Optional[str]:
 
 
 def main() -> int:
+    """入口：在一次性 worktree 里逐条种入变异，汇总成覆盖矩阵。"""
     parser = argparse.ArgumentParser(description=SUMMARY)
     parser.add_argument("--repo", required=True, help="源仓库")
     parser.add_argument("--ref", required=True, help="已核对通过的分支或提交")

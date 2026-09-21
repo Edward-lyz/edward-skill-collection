@@ -35,6 +35,7 @@ NOISE = re.compile(r"^\s*$")
 
 
 def git(repo: Path, *args: str) -> str:
+    """在 repo 上跑 git 取 stdout，失败即终止。"""
     proc = subprocess.run(
         ["git", "-C", str(repo), *args], capture_output=True, text=True, check=False
     )
@@ -77,6 +78,7 @@ def net(
 def source_side(
     repo: Path, commits: Sequence[str], paths: Sequence[str]
 ) -> Tuple[Set[Tuple[str, str]], Set[Tuple[str, str]]]:
+    """源侧净改动行：选中提交逐笔的加行、删行各自求并，再相互抵消。"""
     added: Set[Tuple[str, str]] = set()
     removed: Set[Tuple[str, str]] = set()
     for sha in commits:
@@ -92,6 +94,7 @@ def source_side(
 def replay_side(
     repo: Path, base: str, tip: str, paths: Sequence[str]
 ) -> Tuple[Set[Tuple[str, str]], Set[Tuple[str, str]]]:
+    """重放侧净改动行：新基线到分支 tip 的 diff。"""
     diff = git(
         repo, "diff", "--unified=0", "--no-color", f"{base}..{tip}", "--", *paths
     )
@@ -112,6 +115,7 @@ def load_accept(path: str | None) -> List[Tuple[str, str]]:
 
 
 def accepted(item: Tuple[str, str], rules: Iterable[Tuple[str, str]]) -> str | None:
+    """这条残差是否已被 --accept 里某条规则解释；命中就返回那条理由。"""
     path, line = item
     for pattern, reason in rules:
         if pattern in path or pattern in line:
@@ -120,6 +124,7 @@ def accepted(item: Tuple[str, str], rules: Iterable[Tuple[str, str]]) -> str | N
 
 
 def group(items: Iterable[Tuple[str, str]]) -> Dict[str, List[str]]:
+    """按文件归拢残差行，方便逐文件复核。"""
     grouped: Dict[str, List[str]] = {}
     for path, line in sorted(items):
         grouped.setdefault(path, []).append(line)
@@ -127,6 +132,7 @@ def group(items: Iterable[Tuple[str, str]]) -> Dict[str, List[str]]:
 
 
 def render(title: str, items: Set[Tuple[str, str]], cap: int) -> List[str]:
+    """把一类残差渲染成 markdown 小节，每个文件最多列 cap 行。"""
     if not items:
         return [f"## {title}：无", ""]
     lines = [f"## {title}：{len(items)} 行", ""]
@@ -141,6 +147,7 @@ def render(title: str, items: Set[Tuple[str, str]], cap: int) -> List[str]:
 
 
 def main() -> int:
+    """入口：两侧求差，输出三类残差；漏迁或该删没删非空即非零退出。"""
     parser = argparse.ArgumentParser(description=SUMMARY)
     parser.add_argument("--repo", required=True)
     parser.add_argument(
@@ -191,4 +198,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-++ 
