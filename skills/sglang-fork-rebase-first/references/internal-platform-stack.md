@@ -1,10 +1,12 @@
 # 厂内平台适配栈：DSv4.1 实迁包
 
-A1 链路适配 + A2 监控适配 + A5 通用 BUGFIX 在 DSv4.1 那轮的完整落地物，
-`assets/internal-platform-stack-dsv41.diff` 就是「社区 dsv4.1 基线 + 厂内平台要求」的全部
-差值。它有两个用途：**重放起点**——下一次换基线按台账切片重放，不必重新翻 fork 历史；
-**反向核对的对照物**——平台依赖的路由、指标族、日志 schema、环境变量读取点在这里一次看全，
-SKILL.md 的平台契约反向核对有了逐条比对的基准。
+A1 链路适配 + A2 监控适配 + A5 通用 BUGFIX 在 DSv4.1 那轮的完整落地物。
+
+**重放走提交，不走 diff。** 下面台账里的每个 SHA 都在 `origin/ds-dev-ds4.1f-0917` 上，逐笔
+`cherry-pick` 就能搬到新基线，提交信息、作者、Change-Id 全都跟着走。
+`assets/internal-platform-stack-dsv41.diff` 只是**兜底**：远端分支被删、提交不可达，或者只想
+一眼看全量差值时用它，正常路径不用。台账另一个用途是**反向核对的对照物**——平台依赖的路由、
+指标族、日志 schema、环境变量读取点在这里一次看全。
 
 ## 出处
 
@@ -85,14 +87,45 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 
 ## 用法
 
-1. **先试打，把新基线已有的部分摘出来**：`git apply --check --3way` 逐块看状态。报 already
-   applied 的多半是社区后来自己收了（按 C1 处置），报找不到宿主的进 sibling skill 的 L2/L9
-   重实现，别硬塞。
-2. **按卡切片重放**：台账的「落点」列就是每卡的文件集，`git diff <SHA>^ <SHA> -- <files>`
-   出单卡补丁。顺序按台账自上而下；`80f471dbd8` 是对前面监控栈的 fixup，必须排在它修的那几笔
-   之后，单独 pick 会找不到宿主。
-3. **只核对不重放时**：拿「包里的平台硬契约」当清单，对着新分支 `rg` 一遍，比从平台侧
-   dashboard 反推快一个量级。
+1. **按卡 cherry-pick**：台账自上而下就是原始拓扑序。同卡多笔用 `cherry-pick -n` 连拣再一次
+   commit，`80f471dbd8` 是对监控栈的评审 fixup，连在它修的那几笔后面一起折叠，不单独成卡。
+2. **只核对不重放时**：拿「包里的平台硬契约」当清单，对着新分支跑
+   `scripts/verify_platform_contract.py`，比从平台侧 dashboard 反推快一个量级。
+3. **兜底才用 diff**：`git apply --check --3way` 逐块看状态，报 already applied 的多半是社区
+   后来自己收了（按 C1 处置），报找不到宿主的进 sibling skill 的 L2/L9 重实现，别硬塞。
+
+## 2026-09-21 实账：整支重放到社区 main
+
+社区 main 已对齐，从 main 开 `codex/dsv41-replay-on-main-0921`，把监控与 DSv4.1 多模态两组
+按卡重放，19 笔源提交（全部确认在 `origin/ds-dev-ds4.1f-0917` 上）折叠成 11 个提交，
+57 文件 / +7,376 / −107。
+
+| 新提交 | 折叠的源提交 |
+|---|---|
+| `luno-3716 [监控][PR1/6] 时延` | `395d7c6dd5` `61eeed88eb` `5283390d5d` |
+| `luno-4395 [监控][PR2/6] 日志` | `59b123ee43` |
+| `luno-4648 [监控][PR3/6] /health_forward` | `6c231aba8e` |
+| `luno-4515 [监控][PR4/6] /ready + /get_instance_info` | `35f0a63153` `e075848f30` |
+| `luno-4784 [监控][PR5/6] abort 计数` | `597cb83313` |
+| `luno-4170 [监控][PR6/6] 指标族补齐` | `329df2475e` `4318fff319` `d77aa7e77c` `5cdab3fab5` `51736cebf4` `80f471dbd8` |
+| `luno-4446 [DSv41 多模态][PR1/2] token id 对齐` | `eb01cc3cba` |
+| `luno-5211 [DSv41 多模态][PR2/2] CP 视觉` | `207a80780e` |
+| `luno-5183/5184/5185 [EPD][PR1..3/3]` | 原提交照搬，`git commit -C` 保留作者与 Change-Id |
+
+六处冲突，四类判据：
+
+- **社区已自己收了一个同名路由**：main 上已有 `/ready`（返回 `is_ready()`）。没有照搬厂内那版
+  「把 /ready 挂到 health_generate 上」的写法，而是保留社区 handler，在它前面加排水判断——
+  排水语义只属于 `/ready`，挂到 health_generate 上会连 `/health` 一起受影响。
+- **两笔改动插在同一行**：监控卡的时间戳与 luno-4446 的 trace 行落在同一位置，三处 add/add
+  两边都留，trace 在前、计时在后。
+- **社区换了 API 名**：`get_pp_group()` → `get_parallel().pp_group`，两处按新名重写。
+- **源提交顺手放开了没说的限制**：`207a80780e` 在解除 CP 限制的同时把 MoE A2A 的 guard 也
+  删了，提交信息和注释都没提。本次只解除 CP，A2A guard 保留，行为差写进提交正文。
+
+核对结果：契约 76 项过 65 项。缺的 11 项是 `CD_*` 八个（内容合规 luno-4771）与
+`SGLANG_TOOL_*`/`SGLANG_TOOL_CALL_*` 三个（工具 schema 与 FC 保活 luno-4648/4996），两张卡本轮
+不在范围内。指标族 30、预热计数器 5、路由 6、日志 4、rid trace 14、token id dump 2 全部在位。
 
 ## 包里刻意留下的口子
 

@@ -50,6 +50,9 @@ references/pr-taxonomy.md。
 8. worktree 隔离、不直推保护分支、跑不起来记 deferred 不记 pass——同 sibling skill。
 9. 重放完成的判据是 `scripts/verify_platform_contract.py` 零退出码，不是「卡都 pick 完了」。
    契约里缺的每一项，要么补迁，要么在台账里登记为显式缺失并写清平台影响。
+10. 产物是提交序列，不是一个 diff。每笔都从**远端 ref 上的原提交** pick，pick 前
+    `git merge-base --is-ancestor <sha> <remote-ref>` 确认远端确实有它；只有远端不可达
+    （提交没推过、分支已删）才退到打补丁，并在正文里写明这一笔是补丁兜底。
 
 ## 流程
 
@@ -107,10 +110,36 @@ git diff "$CARD_FIRST^..$CARD_LAST" -- $CARD_FILES > "$ARTIFACTS/patches/$CARD.p
 
 ### 4 逐卡重放
 
-按原始拓扑序（`git log --reverse --topo-order` 过滤出选中集）逐卡 cherry-pick 或 git apply
-卡级补丁。commit message 保留工单号，正文记录来源短 SHA 区间。冲突逐处按 sibling skill 的
-L 律判定；社区侧结构变了的按 L2/L9 把厂内行为接到新结构上，不要凭形似判「已吸收」。每卡完成
-后立即跑：
+按原始拓扑序（`git log --reverse --topo-order` 过滤出选中集）逐卡重放，**一卡一提交**：
+同卡的多笔、连同它的评审 fixup，用 `cherry-pick -n` 连着落进工作区再一次 commit，折叠动作
+就此完成，不必先算卡级补丁。
+
+```bash
+git merge-base --is-ancestor "$SHA" "$REMOTE_REF"        # 远端确有这笔，硬规则 10
+git -c rerere.enabled=false cherry-pick -n $SHA_1 $SHA_2 # 同卡连拣，rerere 先关
+git commit -F -                                          # 折叠成一笔，写卡级 message
+```
+
+拣序错了就 `cherry-pick --abort` 重来：把后一笔排在前面，冲突里会出现「base 有而 HEAD
+没有」的第三方内容，看着像社区改的，其实是自己乱序制造的。
+
+别人的卡照原样搬：`git commit -C <原 SHA>` 连作者和 Change-Id 一起保留，同一评审继续迭代。
+自己的卡重写 message，格式跟厂内 EPD 那组一致，一眼能看出进度和边界：
+
+```
+<卡号> [<模块>][PR i/N] <中文主题>: <要点> + <要点>
+
+<为什么需要它：平台侧或用户侧看到的现象>
+
+<分组标题>:
+- <文件>: <这个文件里做了什么>
+
+重放自 <来源短 SHA 列表>（<远端 ref>），<冲突与解法>，<与源提交的行为差>。
+```
+
+末段三件事必须写：来源 SHA 与远端 ref（可追溯）、冲突位置与判据（可复核）、与源提交的行为
+差（可争论）。冲突逐处按 sibling skill 的 L 律判定；社区侧结构变了的按 L2/L9 把厂内行为接到
+新结构上，不要凭形似判「已吸收」。每卡完成后立即跑：
 
 ```bash
 python3 "$SIBLING/scripts/import_audit.py" --repo "$WORKTREE" \
