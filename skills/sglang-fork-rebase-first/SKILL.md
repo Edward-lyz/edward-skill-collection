@@ -1,6 +1,6 @@
 ---
 name: sglang-fork-rebase-first
-description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。fork 相对旧基线的提交先按七类台账定去留（社区已收录丢弃、非交付模型不迁、特性绑定按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像四件套放栈底；重放完成后按平台契约反向核对路由、启动参数、指标 label 与环境变量读取点。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
+description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。fork 相对旧基线的提交先按七类台账定去留（社区已收录丢弃、非交付模型不迁、特性绑定按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像四件套放栈底；重放完成的判据是平台契约自动核对零退出码——路由、指标族、req_id trace、token id dump、日志 schema、厂内环境变量逐项在位。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放、监控指标有没有漏迁、平台契约核对。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
 ---
 
 # 追社区：基线直换 + 台账化重放
@@ -48,6 +48,8 @@ references/pr-taxonomy.md。
    回来；缺宿主的另一条出路是按 sibling skill 的 L2/L9 补宿主。不允许静默丢弃——`/ready`
    就是静默丢弃的代价。
 8. worktree 隔离、不直推保护分支、跑不起来记 deferred 不记 pass——同 sibling skill。
+9. 重放完成的判据是 `scripts/verify_platform_contract.py` 零退出码，不是「卡都 pick 完了」。
+   契约里缺的每一项，要么补迁，要么在台账里登记为显式缺失并写清平台影响。
 
 ## 流程
 
@@ -120,10 +122,10 @@ python3 "$SIBLING/scripts/import_audit.py" --repo "$WORKTREE" \
 
 ### 5 全量门禁与交付验证
 
-全部卡重放完，按 sibling skill 跑 run_gates.sh 八门禁 + 交付特性组合清单（模型、attention
-后端、MTP、EP、PD 分离、cache）+ 跨组件契约三观测点。两个专项检查：B 类跳过后的悬挂引用
-（A 类代码里 import 模型专属模块的行要跟着裁，import_audit 的 NEW 段会报）；C1 丢弃后的行为
-差（厂内 pick 版与社区收录版不一致的私改，确认已按硬规则 4 拆出）。
+全部卡重放完，按 sibling skill 跑 run_gates.sh 八门禁 + 交付特性组合清单 + 跨组件契约三
+观测点。两个专项检查：B 类跳过后的悬挂引用（A 类代码里 import 模型专属模块的行要跟着裁，
+import_audit 的 NEW 段会报）；C1 丢弃后的行为差（厂内 pick 版与社区收录版不一致的私改，
+确认已按硬规则 4 拆出）。
 
 ### 6 交付镜像四件套
 
@@ -159,30 +161,57 @@ bash "$SKILL_DIR/scripts/check_image_layout.sh" "$DELIVERY_TIP" "$NEW_BASE_SHA" 
 
 台账是从 fork 提交出发的正向流程，只能保证「我们挑中的都搬了」，保证不了「平台依赖的都还
 在」——探针、指标、采集开关的宿主都在平台侧。重放完成后必须从平台契约回查代码和发版 YAML，
-五项都要过：
+一次脚本核对加三项手工核对都要过。
 
-1. **路由全集 diff**。主 server 和 dummy/备用 server 分别取，差集必须为空。
-   ```bash
-   routes() { git grep -oh -E "@app\.(get|post|put|delete)\(\"[^\"]+\"" "$1" \
-     -- python/sglang/srt/entrypoints | sed 's/.*("//' | sort -u; }
-   comm -23 <(routes "$PREV_DELIVERY_REF") <(routes HEAD)
-   ```
-2. **启动参数反查**。参考 YAML 不是参数契约，照抄会让容器直接以 `unrecognized arguments`
+**自动：六类能力逐项比对。**
+
+```bash
+python3 "$SKILL_DIR/scripts/verify_platform_contract.py" \
+  --repo "$WORKTREE" --ref HEAD \
+  --contract "$SKILL_DIR/assets/contract-dsv41.json" \
+  -o "$ARTIFACTS/contract-verify.md"
+```
+
+脚本遍历 `python/sglang/srt` 的 AST，提取当前分支的能力集与契约比对：路由（主 server 与
+dummy server 分开）、指标族（有 `name="sglang:..."` 定义**且**有真实写入点，只 `inc(0)`
+预热的单独归一类）、rid stage trace 行（`trace(logger, "…")`）、token id dump 点
+（`log_input_ids(logger, rid, "<stage>", ids)`）、日志 schema（`configure_logger` 的 prefix
+与 `%(levelname)s` 打头）、厂内环境变量读取点（`os.getenv` / `os.environ` / `envs.`，以及
+`_env_bool("CD_X", …)` 这类自家包装）。
+
+完成判据：退出码 0。退出码 1 时 stderr 逐条报缺什么、原来的宿主文件是哪个；指标族定义还在
+但没人写它，报「无写入点」而不是 MISSING——面板一样是 No data，但修法不同。DSv4.1 实测：契约
+76 项，交付 tip 76/76 过；拿只重放到 `43b2ba6d8b` 的中途状态核对，报缺 49 项（26 个指标族、
+14 条 trace 行、5 个预热计数器、2 个 token id dump 点、2 个环境变量），路由与日志 schema 那
+时已经在位。
+
+契约不手维护，换基线后重新求差生成：
+
+```bash
+python3 "$SKILL_DIR/scripts/verify_platform_contract.py" \
+  --repo "$REPO" --ref "$DELIVERY_REF" --against "$NEW_BASE_SHA" --emit \
+  --env-name MASTER_IP -o "$ARTIFACTS/contract-next.json"
+```
+
+`--emit` 只收「交付 ref 有、社区基线没有」的能力，所以社区后来自己收了某条路由或某个族，它
+就自动从契约里退出，不会留下永远要人解释的历史项。交付 ref 上定义了却没有写入点的族不进契约，
+emit 时单独打一份清单——那是本分支自己的坑，先修。
+
+**手工：三项脚本判不了的。**
+
+1. **启动参数反查**。参考 YAML 不是参数契约，照抄会让容器直接以 `unrecognized arguments`
    退出；对**这次要出的镜像**的 argparse 反查：
    `python3 "$SKILL_DIR/scripts/check_launch_args.py" --repo "$WORKTREE" --yaml <发版 YAML>`。
    差集三分：社区已删且能力默认开启 → 删参数；厂内私有且这次需要 → 按 A 类补迁那笔提交；
    厂内私有且不需要 → 删参数并在台账记一行「能力缺失，需要时迁 \<SHA\>」。
-3. **指标 label 集合逐字比**。面板的 PromQL 按 label 选序列，少一个图就空；取上一版交付分支
+2. **指标 label 集合逐字比**。面板的 PromQL 按 label 选序列，少一个图就空；取上一版交付分支
    和 HEAD 的同一处 `labels = {` 比。
-4. **厂内环境变量读取点 diff**。平台注入的 `AIAK_*` 之类若在新基线里找不到读取点就是静默
-   失效；取两个 ref 的 `os.getenv` / `envs.` 名字集合求差。
-5. **面板清单反查**。指标名从 dashboard 的 JSON（`<url>&editview=dashboard_json`）取，不要
+3. **面板清单反查**。指标名从 dashboard 的 JSON（`<url>&editview=dashboard_json`）取，不要
    按面板标题猜；空面板按五类根因定性（缺观测点 / label 值不匹配 / label 集由拓扑决定 /
    部署开关未开 / 计数器未预热），再排除看板查询自身写错。
 
-完成判据：1 和 4 的差集为空，2 的未识别参数清零，3 逐字一致，5 的每个空面板有定性结论。
-DSv4.1 那次跳过这一步的代价是平台探针拿到 404、POD 永远不进服务列表，白等一轮 12 分钟冷启动
-才发现。
+完成判据：1 的未识别参数清零，2 逐字一致，3 的每个空面板有定性结论。DSv4.1 那次跳过反向核对
+的代价是平台探针拿到 404、POD 永远不进服务列表，白等一轮 12 分钟冷启动才发现。
 
 案例证据全部在 references/monitoring-contract.md：`/ready` 静默丢失的根因链、两个已不存在的
 启动参数、13 个空面板逐条定性、监控代码七条高危写法（三条会打挂服务）、读 `/metrics` 的三个

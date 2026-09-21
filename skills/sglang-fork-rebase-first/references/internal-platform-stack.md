@@ -56,7 +56,10 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 
 ## 包里的平台硬契约
 
-反向核对时逐条确认新基线上还在，缺一条就是平台侧静默失效：
+反向核对时逐条确认新基线上还在，缺一条就是平台侧静默失效。这份清单已经机器化成
+`assets/contract-dsv41.json`（76 项），由 `scripts/verify_platform_contract.py --emit` 从
+`80f471dbd8` 相对 `8bd60a9913` 求差生成，核对是同一个脚本的默认模式，退出码即判据。下面是
+人读的版本：
 
 - **路由**：`/ready`、`/health_forward`、`/get_instance_info`，主 server 与 dummy health
   server 两套都要有。
@@ -70,6 +73,15 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
   `SGLANG_LOG_REQUEST_TRACE`、`SGLANG_LOG_TOKEN_IDS`、
   `SGLANG_ENABLE_TOOL_SCHEMA_REF_EXPANSION`(默认关)、
   `SGLANG_ENABLE_TOOL_SCHEMA_ID_NORMALIZATION`(默认开)。
+- **req_id trace**：14 条 `trace(logger, "…")` 行，覆盖 api server 收请求、tokenizer 发给
+  scheduler、dp controller 路由、scheduler 入队、decode prealloc 入队、decode bootstrap
+  完成与失败、kv cache 收到与传输失败、detokenizer 回传、tokenizer 收回、请求结束与 abort。
+- **token id dump**：2 个 `log_input_ids` 调用点，`tokenized@tokenizer_manager.py`（tokenizer
+  出来的 id，多模态占位符还是裸的）与 `padded@scheduler.py`（填过 media pad 值的 id，才是
+  模型输入和 prefix-cache key 用的那份，跟平台 dump 比就比这个）。
+
+契约项里指标族的判据是「有定义**且**有写入点」：只 `inc(0)` 预热的单独归一类，定义还在但没人
+写的会被报成「无写入点」。这是 DSv4.1 那轮面板 No data 的两种成因，修法不同，所以分开报。
 
 ## 用法
 
