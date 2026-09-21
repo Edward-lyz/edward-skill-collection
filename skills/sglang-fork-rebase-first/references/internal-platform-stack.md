@@ -15,7 +15,7 @@ A1 链路适配 + A2 监控适配 + A5 通用 BUGFIX 在 DSv4.1 那轮的完整�
 | 仓库 / 分支 | baidu/hac-aiacc/aiak_sglang，`ds-dev-ds4.1f-0917` |
 | 基线 | `8bd60a9913`（社区 dsv4.1 dev 线，厂内栈第一笔之前） |
 | 区间 | `8bd60a9913..80f471dbd8`，24 提交，作者全部 liyanzhen01，无 merge |
-| 包规模 | 40 文件 / +2,851 / −147（含 5 个 registered 测试文件） |
+| 包规模 | 40 文件 / +2,851 / -147（含 5 个 registered 测试文件） |
 
 ```bash
 git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.diff
@@ -98,7 +98,7 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 
 社区 main 已对齐，从 main 开 `codex/dsv41-replay-on-main-0921`，把监控与 DSv4.1 多模态两组
 按卡重放：18 笔源提交（全部确认在 `origin/ds-dev-ds4.1f-0917` 上）折叠成 6 个提交，
-56 文件 / +7,343 / −102。
+56 文件 / +7,343 / -102。
 
 | 新提交 | 折叠的源提交 |
 |---|---|
