@@ -97,22 +97,30 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 ## 2026-09-21 实账：整支重放到社区 main
 
 社区 main 已对齐，从 main 开 `codex/dsv41-replay-on-main-0921`，把监控与 DSv4.1 多模态两组
-按卡重放，19 笔源提交（全部确认在 `origin/ds-dev-ds4.1f-0917` 上）折叠成 11 个提交，
-57 文件 / +7,376 / −107。
+按卡重放：17 笔源提交（全部确认在 `origin/ds-dev-ds4.1f-0917` 上）折叠成 6 个提交，
+56 文件 / +7,343 / −102。
 
 | 新提交 | 折叠的源提交 |
 |---|---|
-| `luno-3716 [监控][PR1/6] 时延` | `395d7c6dd5` `61eeed88eb` `5283390d5d` |
-| `luno-4395 [监控][PR2/6] 日志` | `59b123ee43` |
-| `luno-4648 [监控][PR3/6] /health_forward` | `6c231aba8e` |
-| `luno-4515 [监控][PR4/6] /ready + /get_instance_info` | `35f0a63153` `e075848f30` |
-| `luno-4784 [监控][PR5/6] abort 计数` | `597cb83313` |
-| `luno-4170 [监控][PR6/6] 指标族补齐` | `329df2475e` `4318fff319` `d77aa7e77c` `5cdab3fab5` `51736cebf4` `80f471dbd8` |
-| `luno-4446 [DSv41 多模态][PR1/2] token id 对齐` | `eb01cc3cba` |
-| `luno-5211 [DSv41 多模态][PR2/2] CP 视觉` | `207a80780e` |
-| `luno-5183/5184/5185 [EPD][PR1..3/3]` | 原提交照搬，`git commit -C` 保留作者与 Change-Id |
+| `luno-4395 [监控][PR1/2] 平台接入: 日志 schema + 三个探针路由` | `59b123ee43` `6c231aba8e` `35f0a63153` `e075848f30` |
+| `luno-4170 [监控][PR2/2] 指标: 时延 + 全量族 + 面板缺失 + 评审修复` | `395d7c6dd5` `597cb83313` `61eeed88eb` `5283390d5d` `329df2475e` `4318fff319` `d77aa7e77c` `5cdab3fab5` `51736cebf4` `80f471dbd8` |
+| `luno-4446 [EPD][PR1/4] 前置: token id 对齐 + trace 框架` | `eb01cc3cba` |
+| `luno-5183 [EPD][PR2/4]` / `luno-5184 [EPD][PR3/4]` / `luno-5185 [EPD][PR4/4]` | 原提交照搬，作者与 Change-Id 保留，只把 `PRi/3` 改成 `PRi/4` |
 
-六处冲突，四类判据：
+**分组的三条判据**，比「一卡一提交」更贴合评审：
+
+- 监控合成两笔而不是六笔：评审面只有两个——「指标发得对不对」和「日志与探针接得上不上
+  平台」。六张卡（3716/4784/4170 与 4395/4515/4648）按这两个面归并，卡号在正文里逐条点名，
+  追溯不丢。
+- token id 对齐（luno-4446）归到 EPD 而不是单独一组：EPD 把编码搬成独立角色后，encoder
+  的 embedding 与 scheduler 侧 token id 必须逐位对齐，它是后面三卡的地基，所以排 PR1/4。
+  为此把厂内那三笔的 `PRi/3` 顺序改成 `PRi/4`——同一 Change-Id 在新目标分支上开的是新
+  change，改标题不动老分支上的评审。
+- `207a80780e`（luno-5211 CP 视觉，jiashurui）不迁：它是模型内部的 CP 分片路径，不属于
+  平台适配这两组的交付面。顺带省掉一处行为差——源提交在解除 CP 限制时把 MoE A2A 的 guard
+  也删了，提交信息和注释都没提这件事。
+
+五处冲突，四类判据：
 
 - **社区已自己收了一个同名路由**：main 上已有 `/ready`（返回 `is_ready()`）。没有照搬厂内那版
   「把 /ready 挂到 health_generate 上」的写法，而是保留社区 handler，在它前面加排水判断——
@@ -120,12 +128,15 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 - **两笔改动插在同一行**：监控卡的时间戳与 luno-4446 的 trace 行落在同一位置，三处 add/add
   两边都留，trace 在前、计时在后。
 - **社区换了 API 名**：`get_pp_group()` → `get_parallel().pp_group`，两处按新名重写。
-- **源提交顺手放开了没说的限制**：`207a80780e` 在解除 CP 限制的同时把 MoE A2A 的 guard 也
-  删了，提交信息和注释都没提。本次只解除 CP，A2A guard 保留，行为差写进提交正文。
+- **社区已自己收了一个同名赋值**：`get_pp_group()` 那行被 EPD PR4/4 上移到 encoder_only
+  分支之前，原位置的赋值社区侧已存在，取删除并把上移的那行按新 API 重写。漏了这一步的表现
+  是 `F821 Undefined name get_pp_group`——`ruff --select=F821` 扫一遍改动文件就能抓到，
+  这类「解完冲突语法没错但名字不存在」的缺陷值得在每轮重放后固定跑一次。
 
 核对结果：契约 76 项过 65 项。缺的 11 项是 `CD_*` 八个（内容合规 luno-4771）与
 `SGLANG_TOOL_*`/`SGLANG_TOOL_CALL_*` 三个（工具 schema 与 FC 保活 luno-4648/4996），两张卡本轮
 不在范围内。指标族 30、预热计数器 5、路由 6、日志 4、rid trace 14、token id dump 2 全部在位。
+合并成 6 个提交后重跑，结果与 11 个提交时逐项一致——折叠改的是评审粒度，不是交付内容。
 
 ## 包里刻意留下的口子
 

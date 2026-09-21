@@ -110,18 +110,22 @@ git diff "$CARD_FIRST^..$CARD_LAST" -- $CARD_FILES > "$ARTIFACTS/patches/$CARD.p
 
 ### 4 逐卡重放
 
-按原始拓扑序（`git log --reverse --topo-order` 过滤出选中集）逐卡重放，**一卡一提交**：
-同卡的多笔、连同它的评审 fixup，用 `cherry-pick -n` 连着落进工作区再一次 commit，折叠动作
-就此完成，不必先算卡级补丁。
+按原始拓扑序（`git log --reverse --topo-order` 过滤出选中集）重放，**一个评审面一个提交**：
+同一评审面的多张卡、每张卡的多笔、连同评审 fixup，用 `cherry-pick -n` 连着落进工作区再一次
+commit，折叠动作就此完成，不必先算卡级补丁。粒度按「评审时要一起看的东西」定，不按卡数定：
+DSv4.1 这轮六张监控卡合成两笔——指标发得对不对、日志与探针接不接得上平台——卡号在正文里
+逐条点名，追溯不丢。卡多到评审面不清楚时再拆。
 
 ```bash
 git merge-base --is-ancestor "$SHA" "$REMOTE_REF"        # 远端确有这笔，硬规则 10
-git -c rerere.enabled=false cherry-pick -n $SHA_1 $SHA_2 # 同卡连拣，rerere 先关
+git -c rerere.enabled=false cherry-pick -n $SHA_1 $SHA_2 # 连拣，rerere 先关
 git commit -F -                                          # 折叠成一笔，写卡级 message
 ```
 
 拣序错了就 `cherry-pick --abort` 重来：把后一笔排在前面，冲突里会出现「base 有而 HEAD
-没有」的第三方内容，看着像社区改的，其实是自己乱序制造的。
+没有」的第三方内容，看着像社区改的，其实是自己乱序制造的。连拣中途出冲突就必须当场解完
+再继续，后面几笔会静静地落进未解冲突的工作区，一路「干净」到最后 commit 才报 unmerged，
+那时几笔已经搅在一起，只能 `cherry-pick --quit` + `reset --hard` 退回上一个提交重来。
 
 别人的卡照原样搬：`git commit -C <原 SHA>` 连作者和 Change-Id 一起保留，同一评审继续迭代。
 自己的卡重写 message，格式跟厂内 EPD 那组一致，一眼能看出进度和边界：
@@ -139,7 +143,14 @@ git commit -F -                                          # 折叠成一笔，写
 
 末段三件事必须写：来源 SHA 与远端 ref（可追溯）、冲突位置与判据（可复核）、与源提交的行为
 差（可争论）。冲突逐处按 sibling skill 的 L 律判定；社区侧结构变了的按 L2/L9 把厂内行为接到
-新结构上，不要凭形似判「已吸收」。每卡完成后立即跑：
+新结构上，不要凭形似判「已吸收」。解完冲突先扫一遍未定义名字——语法过了不等于名字在：
+
+```bash
+ruff check --isolated --select=F821 $(git diff --name-only "$NEW_BASE_SHA"..HEAD -- '*.py')
+```
+
+社区改过 API 名（`get_pp_group()` → `get_parallel().pp_group`）而厂内那笔把旧名搬了过来，
+就只在这一步露出来。每卡完成后立即跑：
 
 ```bash
 python3 "$SIBLING/scripts/import_audit.py" --repo "$WORKTREE" \
