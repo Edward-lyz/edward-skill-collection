@@ -290,42 +290,42 @@
     },
     {
       "kind": "route.dummy",
-      "key": "/get_instance_info",
+      "key": "/get_instance_info@utils/common.py",
       "where": "python/sglang/srt/utils/common.py"
     },
     {
       "kind": "route.dummy",
-      "key": "/health_forward",
+      "key": "/health_forward@utils/common.py",
       "where": "python/sglang/srt/utils/common.py"
     },
     {
       "kind": "route.dummy",
-      "key": "/ready",
+      "key": "/ready@utils/common.py",
       "where": "python/sglang/srt/utils/common.py"
     },
     {
       "kind": "route.main",
-      "key": "/get_instance_info",
+      "key": "/get_instance_info@entrypoints/http_server.py",
       "where": "python/sglang/srt/entrypoints/http_server.py"
     },
     {
       "kind": "route.main",
-      "key": "/health_forward",
+      "key": "/health_forward@entrypoints/http_server.py",
       "where": "python/sglang/srt/entrypoints/http_server.py"
     },
     {
       "kind": "route.main",
-      "key": "/ready",
+      "key": "/ready@entrypoints/http_server.py",
       "where": "python/sglang/srt/entrypoints/http_server.py"
     },
     {
       "kind": "token_ids",
-      "key": "padded@scheduler.py",
+      "key": "padded@managers/scheduler.py",
       "where": "python/sglang/srt/managers/scheduler.py"
     },
     {
       "kind": "token_ids",
-      "key": "tokenized@tokenizer_manager.py",
+      "key": "tokenized@managers/tokenizer_manager.py",
       "where": "python/sglang/srt/managers/tokenizer_manager.py"
     },
     {

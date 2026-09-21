@@ -97,7 +97,7 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 ## 2026-09-21 实账：整支重放到社区 main
 
 社区 main 已对齐，从 main 开 `codex/dsv41-replay-on-main-0921`，把监控与 DSv4.1 多模态两组
-按卡重放：17 笔源提交（全部确认在 `origin/ds-dev-ds4.1f-0917` 上）折叠成 6 个提交，
+按卡重放：18 笔源提交（全部确认在 `origin/ds-dev-ds4.1f-0917` 上）折叠成 6 个提交，
 56 文件 / +7,343 / −102。
 
 | 新提交 | 折叠的源提交 |

@@ -159,6 +159,10 @@ class FileScan:
     def __init__(self, path: str, source: str, dummy_func: str) -> None:
         self.path = path
         self.module = path.rsplit("/", 1)[-1]
+        # 路由与 dump 点按「上一级目录/文件名」定位宿主：同一个路径可能由多个 server 提供
+        # （主 server 与 encode server 都有 /health_forward），只按路径记会把它们并成一项，
+        # 删掉其中一个照样过。两段路径足够区分宿主，又不会因为整棵树搬家就失配。
+        self.anchor = "/".join(path.split("/")[-2:])
         self.dummy_func = dummy_func
         self.routes: List[Tuple[str, bool]] = []
         self.metric_defs: Dict[str, str] = {}       # attr -> family
@@ -301,7 +305,11 @@ def extract(
 
     for scan in scans:
         for path, dummy in scan.routes:
-            add("route.dummy" if dummy else "route.main", path, scan.path)
+            add(
+                "route.dummy" if dummy else "route.main",
+                f"{path}@{scan.anchor}",
+                scan.path,
+            )
         for attr, family in scan.metric_defs.items():
             defined.setdefault(family, scan.path)
             if has_writer(attr):
@@ -313,7 +321,7 @@ def extract(
         for message in scan.traces:
             add("trace", message, scan.path)
         for stage in scan.token_stages:
-            add("token_ids", f"{stage}@{scan.module}", scan.path)
+            add("token_ids", f"{stage}@{scan.anchor}", scan.path)
         for prefix in scan.log_prefixes:
             add("log", f"prefix:{prefix}", scan.path)
         if scan.levelname_first and scan.module == "common.py":

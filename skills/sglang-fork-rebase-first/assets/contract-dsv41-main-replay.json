@@ -1,0 +1,444 @@
+{
+  "generated": {
+    "repo": "/Users/liyanzhen/baidu/BAIDU_REPO/aiak_sglang",
+    "delivery_ref": "e16c24f7c4",
+    "community_base": "b54d5b7c7b",
+    "at": "2026-09-21",
+    "env_prefixes": [
+      "AIAK_",
+      "CD_"
+    ],
+    "env_names": [
+      "MASTER_IP",
+      "SGLANG_LOG_REQUEST_TRACE",
+      "SGLANG_LOG_TOKEN_IDS"
+    ]
+  },
+  "capabilities": [
+    {
+      "kind": "env",
+      "key": "AIAK_STOP_SIGNAL_DIR",
+      "where": "python/sglang/srt/entrypoints/http_server.py"
+    },
+    {
+      "kind": "env",
+      "key": "MASTER_IP",
+      "where": "python/sglang/srt/utils/common.py"
+    },
+    {
+      "kind": "env",
+      "key": "SGLANG_LOG_REQUEST_TRACE",
+      "where": "python/sglang/srt/observability/request_trace.py"
+    },
+    {
+      "kind": "env",
+      "key": "SGLANG_LOG_TOKEN_IDS",
+      "where": "python/sglang/srt/observability/request_trace.py"
+    },
+    {
+      "kind": "log",
+      "key": "levelname-first",
+      "where": "python/sglang/srt/utils/common.py"
+    },
+    {
+      "kind": "log",
+      "key": "prefix:DPController",
+      "where": "python/sglang/srt/managers/data_parallel_controller.py"
+    },
+    {
+      "kind": "log",
+      "key": "prefix:Detokenizer",
+      "where": "python/sglang/srt/managers/detokenizer_manager.py"
+    },
+    {
+      "kind": "log",
+      "key": "prefix:Tokenizer",
+      "where": "python/sglang/srt/entrypoints/http_server.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:all_gather_latency_us",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:decode_bs_util",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:detokenizer_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:detokenizer_to_tokenizer_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:device_cache_hit_rate",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:dp_balance",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_cache_byte_hit_rate",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_cache_hit_bytes_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_cache_hit_requests_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_cache_req_hit_rate",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_cache_total_bytes_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_cache_total_requests_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_cache_used_bytes",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_free_tokens",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_num_aborted_requests_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_num_failed_requests_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:encoder_num_requests_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:engine_load_weights_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:engine_startup_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:epd_transfer_requests_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:epd_transfer_total_seconds",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:generation_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:gpu_buffer_pool_total_bytes",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:gpu_buffer_pool_used_bytes",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:host_cache_hit_rate",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:idle_batch_ratio",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:iter_token_process_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:kvcache_transfer_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:mm_receiver_embedding_transfer_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:mm_receiver_failed_requests_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:mm_receiver_timeout_requests_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:mm_receiver_waiting_requests",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:num_max_batchs",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:num_mm_requests_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:num_prefill_prealloc_queue_reqs",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:per_prompt_gen_len",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:per_prompt_len",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:prealloc_token_usage",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:prefill_chunk_util",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:prompt_calculation_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:request_first_token_forward_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:request_time_to_tokenizer_ready_seconds",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:request_waiting_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:request_zmq_time_seconds",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:run_batch_time",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:vit_fetch_duration_seconds",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric",
+      "key": "sglang:vit_fetch_tasks_count",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric.preheat",
+      "key": "sglang:encoder_num_aborted_requests_total",
+      "where": "python/sglang/srt/disaggregation/encode_collector.py"
+    },
+    {
+      "kind": "metric.preheat",
+      "key": "sglang:evicted_tokens_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric.preheat",
+      "key": "sglang:num_aborted_requests_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric.preheat",
+      "key": "sglang:num_bootstrap_failed_reqs_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric.preheat",
+      "key": "sglang:num_mm_requests_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "metric.preheat",
+      "key": "sglang:num_transfer_failed_reqs_total",
+      "where": "python/sglang/srt/observability/metrics_collector.py"
+    },
+    {
+      "kind": "route.dummy",
+      "key": "/get_instance_info@utils/common.py",
+      "where": "python/sglang/srt/utils/common.py"
+    },
+    {
+      "kind": "route.dummy",
+      "key": "/health_forward@utils/common.py",
+      "where": "python/sglang/srt/utils/common.py"
+    },
+    {
+      "kind": "route.dummy",
+      "key": "/ready@utils/common.py",
+      "where": "python/sglang/srt/utils/common.py"
+    },
+    {
+      "kind": "route.main",
+      "key": "/epd/transfer@encoder/http_server.py",
+      "where": "python/sglang/srt/disaggregation/encoder/http_server.py"
+    },
+    {
+      "kind": "route.main",
+      "key": "/get_instance_info@entrypoints/http_server.py",
+      "where": "python/sglang/srt/entrypoints/http_server.py"
+    },
+    {
+      "kind": "route.main",
+      "key": "/health_forward@encoder/http_server.py",
+      "where": "python/sglang/srt/disaggregation/encoder/http_server.py"
+    },
+    {
+      "kind": "route.main",
+      "key": "/health_forward@entrypoints/http_server.py",
+      "where": "python/sglang/srt/entrypoints/http_server.py"
+    },
+    {
+      "kind": "route.main",
+      "key": "/ready@encoder/http_server.py",
+      "where": "python/sglang/srt/disaggregation/encoder/http_server.py"
+    },
+    {
+      "kind": "token_ids",
+      "key": "padded@managers/scheduler.py",
+      "where": "python/sglang/srt/managers/scheduler.py"
+    },
+    {
+      "kind": "token_ids",
+      "key": "tokenized@managers/tokenizer_manager.py",
+      "where": "python/sglang/srt/managers/tokenizer_manager.py"
+    },
+    {
+      "kind": "trace",
+      "key": "%s request %s entered the decode prealloc queue",
+      "where": "python/sglang/srt/managers/scheduler.py"
+    },
+    {
+      "kind": "trace",
+      "key": "api server received request %s",
+      "where": "python/sglang/srt/entrypoints/openai/serving_base.py"
+    },
+    {
+      "kind": "trace",
+      "key": "detokenizer received %s from the scheduler",
+      "where": "python/sglang/srt/managers/detokenizer_manager.py"
+    },
+    {
+      "kind": "trace",
+      "key": "dp controller routed request %s to a scheduler",
+      "where": "python/sglang/srt/managers/data_parallel_controller.py"
+    },
+    {
+      "kind": "trace",
+      "key": "request %s aborted: reason=%r status_code=%s input_len=%d output_len=%d",
+      "where": "python/sglang/srt/managers/scheduler_components/output_streamer.py"
+    },
+    {
+      "kind": "trace",
+      "key": "request %s failed its kv cache transfer",
+      "where": "python/sglang/srt/disaggregation/decode.py"
+    },
+    {
+      "kind": "trace",
+      "key": "request %s finished decode bootstrap",
+      "where": "python/sglang/srt/disaggregation/decode.py"
+    },
+    {
+      "kind": "trace",
+      "key": "request %s finished in %.3fs",
+      "where": "python/sglang/srt/managers/tokenizer_manager.py"
+    },
+    {
+      "kind": "trace",
+      "key": "request %s finished: %s input_len=%d output_len=%d",
+      "where": "python/sglang/srt/managers/scheduler_components/output_streamer.py"
+    },
+    {
+      "kind": "trace",
+      "key": "request %s received its kv cache",
+      "where": "python/sglang/srt/disaggregation/decode.py"
+    },
+    {
+      "kind": "trace",
+      "key": "request %s was aborted during decode bootstrap",
+      "where": "python/sglang/srt/disaggregation/decode.py"
+    },
+    {
+      "kind": "trace",
+      "key": "scheduler queued request %s: prompt_len=%d sampling=%s",
+      "where": "python/sglang/srt/managers/scheduler.py"
+    },
+    {
+      "kind": "trace",
+      "key": "tokenizer received %s from the detokenizer",
+      "where": "python/sglang/srt/managers/tokenizer_manager.py"
+    },
+    {
+      "kind": "trace",
+      "key": "tokenizer sent request %s to the scheduler",
+      "where": "python/sglang/srt/managers/tokenizer_manager.py"
+    }
+  ]
+}
