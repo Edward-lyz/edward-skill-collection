@@ -102,15 +102,21 @@ def replay_side(
 
 
 def load_accept(path: str | None) -> List[Tuple[str, str]]:
-    """--accept 文件：每行 `<glob or 'line'>\t<理由>`，# 开头是注释。"""
+    """--accept 文件：每行 `<匹配片段>\t<理由>`，# 开头是注释。
+
+    判据是「line-by-line 一致，除非上游改了接口」，所以理由必须写出来并点名上游那处
+    变更；没有理由的规则直接拒绝，免得例外清单退化成消音开关。
+    """
     if not path:
         return []
     rules: List[Tuple[str, str]] = []
-    for raw in Path(path).read_text(encoding="utf-8").splitlines():
+    for number, raw in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         pattern, _, reason = raw.partition("\t")
-        rules.append((pattern.strip(), reason.strip() or "（未写理由）"))
+        if not reason.strip():
+            raise SystemExit(f"{path}:{number} 这条例外没写理由，补上上游改了哪个接口")
+        rules.append((pattern.strip(), reason.strip()))
     return rules
 
 

@@ -1,0 +1,16 @@
+# 验证点 2 的例外清单：DSv4.1 两组重放到社区 main（main..codex/dsv41-replay-on-main-0921）
+#
+# 格式：<匹配片段>\t<理由>。判据是「line-by-line 一致，除非上游改了接口」，所以每条理由
+# 必须点名上游那处接口变更，只写「有意改写」不算。没有理由的规则脚本直接拒绝。
+#
+@app.get("/ready")	上游接口变更：社区 main 新增了自己的 /ready（async def ready 调 tokenizer_manager.is_ready()）。厂内原先把 /ready 当 health_generate 的别名，现在保留社区 handler，排水判断叠在它前面，所以这个别名不再需要
+request.url.path.rstrip("/") == "/ready"	同上：排水判断从 health_generate 里按 path 分支挪进独立的 ready()，避免 /health 也跟着受排水影响
+/ready is the endpoint the internal gateway polls	同上，随那处改写一起替换的注释
+new traffic away while the in-flight requests finish	同上，随那处改写一起替换的注释
+Report whether the server is ready to receive new requests	同上：新 ready() 的 docstring，社区 handler 的原文加上排水说明
+has to win over the readiness answer	同上：新 ready() 的 docstring
+written it, and fall back to the engine's own readiness	同上：新 ready() 的 docstring
+if stopped_by_external():	同上：排水判断在新 ready() 里的落点
+mlp_sync_info.all_gather_latency = time.perf_counter() - gather_start	工具限制而非接口变更：源侧这一行被后一笔原样移了位置，加集与删集自相抵消，所以只在重放侧出现。内容逐字一致
+offsets=[(start, start + count - 1)]	同上：整行搬家造成的假阳性，EPD 那一卡把这段重排了位置
+modality=Modality.IMAGE,	同上

@@ -48,10 +48,10 @@ references/pr-taxonomy.md。
    回来；缺宿主的另一条出路是按 sibling skill 的 L2/L9 补宿主。不允许静默丢弃——`/ready`
    就是静默丢弃的代价。
 8. worktree 隔离、不直推保护分支、跑不起来记 deferred 不记 pass——同 sibling skill。
-9. 重放完成的判据是 `scripts/verify_platform_contract.py` 零退出码，不是「卡都 pick 完了」。
-   契约里缺的每一项，要么补迁，要么在台账里登记为显式缺失并写清平台影响。
-   存在性只是第一级；重放的正确性判据是**与源提交等价，除了记录在案的适配**，所以还要跑
-   `scripts/replay_residual.py` 对差。两级都拦不住值失真，那部分只能交给运行时取数。
+9. 重放完成的判据是三个验证点，不是「卡都 pick 完了」：**1 所需字段都能取到**
+   （`verify_platform_contract.py` 零退出码）；**2 与源 PR 集 line-by-line 一致**
+   （`replay_residual.py` 的漏迁与该删没删归零，例外只有上游改了接口，且理由要点名那处变更）；
+   **3 起 EPD 服务实测能力与字段**。前两点拦不住值失真，那部分必须由第 3 点接。
 10. 产物是提交序列，不是一个 diff。每笔都从**远端 ref 上的原提交** pick，pick 前
     `git merge-base --is-ancestor <sha> <remote-ref>` 确认远端确实有它；只有远端不可达
     （提交没推过、分支已删）才退到打补丁，并在正文里写明这一笔是补丁兜底。
@@ -205,7 +205,7 @@ bash "$SKILL_DIR/scripts/check_image_layout.sh" "$DELIVERY_TIP" "$NEW_BASE_SHA" 
 在」——探针、指标、采集开关的宿主都在平台侧。重放完成后必须从平台契约回查代码和发版 YAML，
 一次脚本核对加三项手工核对都要过。
 
-**自动：六类能力逐项比对。**
+**验证点 1：所需的字段都能够被 get 到。**
 
 ```bash
 python3 "$SKILL_DIR/scripts/verify_platform_contract.py" \
@@ -255,8 +255,8 @@ emit 时单独打一份清单——那是本分支自己的坑，先修。
 完成判据：1 的未识别参数清零，2 逐字一致，3 的每个空面板有定性结论。DSv4.1 那次跳过反向核对
 的代价是平台探针拿到 404、POD 永远不进服务列表，白等一轮 12 分钟冷启动才发现。
 
-**自动：语义残差对差。** 存在性过了不等于内容都落地了。以源提交为 oracle，两侧各算净改动
-行集合再求差：
+**验证点 2：对比源 PR 集，代码 line-by-line 一致。** 字段都在不等于内容都落地了。以源提交为
+判准，两侧各算净改动行集合再求差：
 
 ```bash
 python3 "$SKILL_DIR/scripts/replay_residual.py" --repo "$WORKTREE" \
@@ -265,9 +265,17 @@ python3 "$SKILL_DIR/scripts/replay_residual.py" --repo "$WORKTREE" \
   -o "$ARTIFACTS/residual.md"
 ```
 
-完成判据：漏迁与「该删没删」两类为空，或每条都落进 `--accept` 的一条理由。这两类是承重信号
-（冲突解丢一行、折叠漏 hunk、老实现没删干净）；「新造」是复核清单，整行搬家会造成假阳性。
-DSv4.1 实测：18 笔源提交对 6 笔重放，残差 4 行漏迁 + 9 行新造，全部指向同一处有意改写。
+完成判据：漏迁与「该删没删」两类归零。唯一允许的例外是**上游改了接口**，写进 `--accept` 清单
+并在理由里点名那处变更，只写「有意改写」不算，没写理由的规则脚本直接拒绝。这两类是承重信号
+（冲突解丢一行、折叠漏 hunk、老实现没删干净）；「新造」不进判据，整行搬家会造成假阳性。
+DSv4.1 实测：18 笔源提交对 6 笔重放，4 行漏迁全指向社区自己新增 `/ready` 那处接口变更，挂上
+`assets/accepted-residual-dsv41-main.tsv` 后归零。
+
+**验证点 3：实际启动 EPD 服务，测试能力和字段。** 前两点只看代码长什么样，看不出值对不对。
+三角色拉起来打一条带图 PD 请求，然后逐项取数：探针回什么码、`/metrics` 按族名前后 diff 只多
+不少、同一个 rid 能串起全链路的 stage 行、`tokenized` 与 `padded` 两份 token id 都能 dump 且
+padded 与平台 dump 逐位一致。启动参数缺 `--enable-metrics` 就全是空的。逐项判据、响应字段清单
+和取数的三个陷阱见 references/epd-runtime-acceptance.md。跑不起来记 deferred，不记 pass。
 
 **核对脚本自己的正确性**靠变异探针，改过核对脚本或加过能力类之后跑一次：
 
@@ -276,9 +284,9 @@ python3 "$SKILL_DIR/scripts/verify_mutations.py" --repo "$REPO" --ref "$DELIVERY
   --contract <该分支自己 --emit 出来的契约> -o "$ARTIFACTS/mutations.md"
 ```
 
-逐个种入一类真实发生过的缺陷，看 L1 是否变红：应拦的 CAUGHT、登记在案的盲点 SURVIVED 才算
+逐个种入一类真实发生过的缺陷，看验证点 1 是否变红：应拦的 CAUGHT、登记在案的盲点 SURVIVED 才算
 通过。这一轮它抓出核对脚本自己的 bug——路由只按路径记 key，encode server 上的同名 `/health_forward`
-把主 server 那份盖住了，删主 server 的照样过。三级阶梯的分工、盲点移交和实测数据见
+把主 server 那份盖住了，删主 server 的照样过。三个验证点的分工、盲点移交和实测数据见
 references/verification-ladder.md。
 
 案例证据全部在 references/monitoring-contract.md：`/ready` 静默丢失的根因链、两个已不存在的
