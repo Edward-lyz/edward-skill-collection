@@ -52,6 +52,8 @@ references/pr-taxonomy.md。
    （`verify_platform_contract.py` 零退出码）；**2 与源 PR 集 line-by-line 一致**
    （`replay_residual.py` 的漏迁与该删没删归零，例外只有上游改了接口，且理由要点名那处变更）；
    **3 起 EPD 服务实测能力与字段**。前两点拦不住值失真，那部分必须由第 3 点接。
+   第 3 点按部署形态排优先级：先起 PD 分离，资源允许再起集中式（不带
+   `--disaggregation-mode`）；集中式没资源起时，必须做集中式路径静态检查，不能直接跳过。
 10. 产物是提交序列，不是一个 diff。每笔都从**远端 ref 上的原提交** pick，pick 前
     `git merge-base --is-ancestor <sha> <remote-ref>` 确认远端确实有它；只有远端不可达
     （提交没推过、分支已删）才退到打补丁，并在正文里写明这一笔是补丁兜底。
@@ -277,6 +279,31 @@ DSv4.1 实测：18 笔源提交对 6 笔重放，4 行漏迁全指向社区自�
 padded 与平台 dump 逐位一致。启动参数缺 `--enable-metrics` 就全是空的。逐项判据、响应字段清单
 和取数的三个陷阱见 references/epd-runtime-acceptance.md。跑不起来记 deferred，不记 pass。
 
+**集中式也要起（优先级低于 PD 分离）。** PD 分离跑通不代表集中式能跑：`Scheduler.process_batch_result`
+按 `disaggregation_mode` 分岔，PD prefill 节点走 `disaggregation/prefill.py` 的
+`process_batch_result_disagg_prefill`（Scheduler mixin，`self` 是 Scheduler），集中式走
+`scheduler_components/batch_result_processor.py` 的 `process_batch_result_prefill`（独立的
+`slots=True, frozen=True` dataclass，`self` 只有构造时传入的字段）。同一笔监控代码在两边各加一份，
+只有集中式那份会炸。顺序是：
+
+1. 先起 PD 分离（交付形态），按上面逐项取数。
+2. 资源允许再起集中式：同一套模型参数去掉 `--disaggregation-mode` 系列，带 `--enable-metrics`，
+   打一轮有并发、含短输出（`max_tokens` 小或首 token 即 EOS）的请求，让请求在 prefill 后就结束，
+   覆盖 `req.finished()` 分支。scheduler 不报错、`/metrics` 族名齐全才算过。
+3. 集中式确实没资源起，做集中式路径静态检查，结论写进台账，记「静态通过 / 运行 deferred」：
+
+```bash
+# 重放引入的 self.<attr> 访问，逐个对照所在类有没有这个字段
+git diff "$NEW_BASE_SHA"..HEAD -U0 -- python/sglang/srt/managers/scheduler_components \
+  | rg '^\+.*self\.(server_args|enable_metrics)\b'
+# 组件类的字段表：dataclass 字段 + scheduler.py 里构造时传的关键字参数
+rg -n '^class |^    [a-z_]+: ' python/sglang/srt/managers/scheduler_components/batch_result_processor.py
+```
+
+   组件类里读开关一律走全局 getter（`get_observability().enable_metrics`、`get_memory()`、
+   `get_disagg()`）；Scheduler 及其 mixin 里走 `self.metrics_reporter.enable_metrics`。
+   案例与判据见 references/monitoring-contract.md 第八节第 8 条。
+
 **核对脚本自己的正确性**靠变异探针，改过核对脚本或加过能力类之后跑一次：
 
 ```bash
@@ -290,7 +317,7 @@ python3 "$SKILL_DIR/scripts/verify_mutations.py" --repo "$REPO" --ref "$DELIVERY
 references/verification-ladder.md。
 
 案例证据全部在 references/monitoring-contract.md：`/ready` 静默丢失的根因链、两个已不存在的
-启动参数、13 个空面板逐条定性、监控代码七条高危写法（三条会打挂服务）、读 `/metrics` 的三个
+启动参数、13 个空面板逐条定性、监控代码八条高危写法（四条会打挂服务）、读 `/metrics` 的三个
 陷阱（hostNetwork IP 串台、带 label 指标要等首次观测、两个 collector 分开判）、发版 YAML 监控
 必查项、不重启 POD 的三方 md5 热替验收。迁完监控代码和判「指标缺失」之前各读一遍。
 
@@ -340,3 +367,8 @@ references/verification-ladder.md。
   的裸 `/` 分支删掉做收紧，而新基线的 load_image 已改成先剥 file:// 再把纯路径传下去，照搬
   后留下的 file:// 分支不可达、真正在用的裸路径分支被删，仓库自带的 registered 测试还把旧
   契约钉着。判据是 rg 出全部调用点，看清谁剥 scheme、谁读文件，再决定照搬 / 改写 / 放弃。
+- 旧基线的 Scheduler 方法在新基线被拆成独立组件后，照搬的 `self.server_args` 会指向不存在的
+  字段。DSv4.1 实测：`4318fff319` 把首 token 指标同时加进 PD prefill mixin 和
+  `SchedulerBatchResultProcessor`，只验了 PD 分离，集中式压测时请求在 prefill 结束即
+  `AttributeError: 'SchedulerBatchResultProcessor' object has no attribute 'server_args'`，
+  全部 TP rank 退出。所以集中式也要起，起不了做上面的静态检查。

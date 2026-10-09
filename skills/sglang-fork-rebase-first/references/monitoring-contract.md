@@ -259,6 +259,18 @@ K3 的 `engine_startup_time` / `engine_load_weights_time` 是
    `prefill_chunk_util` 用的是 `max(1, ...)`；同一文件里两种写法就是漏改的信号。
 7. **首 tick 时间戳还是 0**。`iter_finish_time - iter_start_time` 在事件循环打点之前触发
    会把进程 uptime 当 `generation_time`（日志里是上亿毫秒），上报前校验并 clamp 到非负。
+8. **组件类里照搬 `self.server_args`**。旧基线 `SchedulerBatchResultProcessor` 有
+   `server_args` 字段，新基线删掉了，改用 `get_observability()` 等全局 getter；它是
+   `slots=True, frozen=True` dataclass，访问未声明字段直接 AttributeError。`4318fff319`
+   在 `process_batch_result_prefill` 的 `req.finished()` 分支照搬了
+   `if self.server_args.enable_metrics:`（同文件另一处已是 `get_observability().enable_metrics`）。
+   PD 分离的 prefill 节点走 `process_batch_result_disagg_prefill`（Scheduler mixin），碰不到
+   这行，所以 PD 验收全绿；集中式（`disaggregation_mode == NULL`）压测时，只要有请求在 prefill
+   后就结束（首 token EOS / stop / 小 `max_tokens`）就炸，所有 TP rank 退出。判据：迁监控代码后
+   先确认每处 `self.<attr>` 的 `self` 是谁——Scheduler 和 mixin 用
+   `self.metrics_reporter.enable_metrics`，`scheduler_components/` 下的组件类只能用构造时传入的
+   字段或全局 getter；`rg "self\.server_args" python/sglang/srt/managers/scheduler_components`
+   应为空。运行验证要覆盖集中式，见 SKILL.md 验证点 3。
 
 LLM 评审的 BLOCK 报告要逐条核实再改。本轮 9 条里 7 条成立、2 条是误报：`used_bytes` 用
 `self._lock` 被疑属性不存在，实际类里 `self._lock = threading.Lock()` 加
