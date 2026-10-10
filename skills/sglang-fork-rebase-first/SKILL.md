@@ -62,14 +62,20 @@ references/pr-taxonomy.md。
     `git merge-base --is-ancestor <sha> <remote-ref>` 确认远端确实有它；只有远端不可达
     （提交没推过、分支已删）才退到打补丁，并在正文里写明这一笔是补丁兜底。
 11. 环境本机优先：先 `scripts/pick_env.sh <static|unit|gpu>`，输出 `local <venv>` 就在
-    本机 uv venv 里跑，输出 `remote <host>` 才走 dev-machine-remote（`rdev.py sync push` 同步
-    worktree，`rdev.py exec` 执行，长任务按该 skill 走后台）。判据：静态步骤（台账、pick、
+    本机 uv venv 里跑，输出 `remote <cmd>` 才走远端。远端由用户给的 `REBASE_REMOTE`
+    决定（一条能在远端执行 shell 的命令前缀，如 `ssh user@gpu-host`），skill 不假设任何
+    私有脚本；未设置而又必须走远端时，停下来向用户要这个值。判据：静态步骤（台账、pick、
     ruff、契约核对、residual、CR、取镜像）全在本机，它们只依赖 git 和 stdlib；单测在 venv
     装得上 torch 与 `sglang.srt` 才留本机；EPD 起服务、kernel 测试一律远端。fallback 要在
     台账里记一行原因，不静默切换。
 12. 重放完成并通过本地门禁后，**自动提交 CR 并取回镜像地址**，不再停下来问用户要不要推
     （refs/for 评审提交可撤销，已由本规则授权）：`scripts/submit_cr.sh` → `scripts/cr_image.py`。
     受保护分支仍然不直推。流程见第 8 步。
+13. **base 镜像地址是必填输入，且必须用户手动确认。** 开工时就要拿到 `BASE_IMAGE`（交付
+    Dockerfile 的 FROM，形如 `iregistry.baidu-int.com/...:tag`）。用户没给就问；给了或者
+    从模板推出了候选，也要把完整地址原样回显、等用户明确回复确认后才继续——不因「模板里
+    就是这个」自行确认。确认结果写进台账，Dockerfile 的 FROM 必须与之逐字一致，
+    `submit_cr.sh` 会校验，未确认或不一致就拒绝推送。
 
 ## 流程
 
@@ -188,6 +194,8 @@ import_audit 的 NEW 段会报）；C1 丢弃后的行为差（厂内 pick 版�
 确认已按硬规则 4 拆出）。
 
 ### 6 交付镜像四件套
+
+先拿到用户手动确认过的 `BASE_IMAGE`（硬规则 13），Dockerfile 的 FROM 写它，不写别的。
 
 C2 里的镜像改动按厂内已有格式改：`ci.yml`、`build/build.sh`、`dockerfile/Dockerfile`、
 `dockerfile/gpu_requirements.env`，模板取 origin 上**同类 base**（社区镜像 / 厂内
@@ -345,9 +353,10 @@ references/verification-ladder.md。
 
 ```bash
 bash "$SKILL_DIR/scripts/submit_cr.sh" "$TARGET_BRANCH" --base "$NEW_BASE_SHA" \
+  --base-image "$BASE_IMAGE" --base-image-confirmed \
   | tee "$ARTIFACTS/cr-push.txt"
 TIP=$(git rev-parse HEAD)
-python3 "$SKILL_DIR/scripts/cr_image.py" --revision "$TIP" \
+python3 "$SKILL_DIR/scripts/cr_image.py" --revision "$TIP" --base-image "$BASE_IMAGE" \
   -o "$ARTIFACTS/image.json" | tee "$ARTIFACTS/image.txt"
 ```
 
@@ -358,8 +367,11 @@ master/main，再 `git push origin HEAD:refs/for/<target>`；`--dry-run` 只做�
 `iregistry.baidu-int.com/hac_test/aiak-inference-sglang:<user>_<yyyymmdd>_<hhmmss>`。用 tip
 而不是第一笔：每个 change 的 CI checkout 自己那条 ref，只有 tip 的镜像含整栈。退出码
 0 = 取到、1 = 构建失败（stderr 给 buildUrl，按 ipipe-official 看日志）、2 = 超时。
-需要 ipipe-cli 已登录（`ipipe-cli login status`），没登录就报 `ipipe-official` 的登录步骤
-并停下，这是唯一需要用户介入的点。镜像失败的修复提交要保留原 Change-Id 再推，镜像
+ipipe-cli 不在 PATH 时 `cr_image.py` 自动调用 `ensure_ipipe.sh`：从官方地址下载
+ipipe-official 包，按其 SKILL.md 里的版本与安装脚本装好 CLI（官方包地址可用
+`IPIPE_SKILL_URL` 覆盖）。未登录（`ipipe-cli login status`）时按 `ipipe-official` 的
+登录步骤让用户给 token 后停下。最终汇报同时给出 **base 镜像地址（用户已确认的）** 和
+**构建出的镜像地址**，`image.json` 里两者都有。镜像失败的修复提交要保留原 Change-Id 再推，镜像
 地址随新 patchset 重取。机制与字段见 references/cr-image.md。
 
 改已推过的评审必须保留原 Change-Id：换消息文件时 commit-msg hook 会生成新的，icode 会拒并

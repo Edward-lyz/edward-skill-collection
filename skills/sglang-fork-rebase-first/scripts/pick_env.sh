@@ -1,36 +1,37 @@
 #!/usr/bin/env bash
 # Pick where a rebase step runs: local (uv venv) first, remote only when local cannot.
 #
-#   pick_env.sh <static|unit|gpu> [--repo DIR] [--host ALIAS]
+#   pick_env.sh <static|unit|gpu> [--repo DIR]
 #
 # static : inventory / pick / ruff / contract / residual / CR / image fetch. Stdlib + git.
 # unit   : repo unit tests that import torch etc. Local only if the import works in the venv.
 # gpu    : EPD runtime acceptance, kernel tests. Always remote (macOS has no CUDA).
 #
+# Remote is whatever the user configured in REBASE_REMOTE: a command prefix that runs a
+# shell command on the remote machine (e.g. "ssh user@gpu-host"). No tool is assumed.
+#
 # stdout: "local <venv>" or "remote <host>". Exit 1 on a missing hard dependency.
 set -euo pipefail
 
-need=${1:?usage: pick_env.sh <static|unit|gpu> [--repo DIR] [--host ALIAS]}
+need=${1:?usage: pick_env.sh <static|unit|gpu> [--repo DIR]}
 shift
 repo=$PWD
-host=${RDEV_HOST:-b200Dev}
 while [ $# -gt 0 ]; do
   case $1 in
     --repo) repo=$2; shift 2 ;;
-    --host) host=$2; shift 2 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
   esac
 done
 
 venv=${REBASE_VENV:-$HOME/.cache/sglang-rebase/.venv}
-rdev=${RDEV:-/Users/liyanzhen/baidu/PRIVATE/scripts/rdev.py}
 
 command -v git >/dev/null || { echo "missing: git" >&2; exit 1; }
 
 use_remote() {
-  [ -f "$rdev" ] || { echo "missing: $rdev (remote fallback unavailable)" >&2; exit 1; }
-  python3 "$rdev" health --host "$host" >&2 || { echo "remote $host unreachable" >&2; exit 1; }
-  echo "remote $host"
+  [ -n "${REBASE_REMOTE:-}" ] \
+    || { echo "remote needed but REBASE_REMOTE is unset (e.g. 'ssh user@gpu-host')" >&2; exit 1; }
+  $REBASE_REMOTE true >&2 || { echo "remote '$REBASE_REMOTE' unreachable" >&2; exit 1; }
+  echo "remote $REBASE_REMOTE"
   exit 0
 }
 

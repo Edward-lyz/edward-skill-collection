@@ -28,9 +28,14 @@ FAILED_BUILD = {"FAIL", "CANCEL", "CANCELED", "ABORT"}
 
 def find_cli() -> str:
     cli = shutil.which("ipipe-cli") or os.path.expanduser("~/.ipipe-cli/bin/ipipe-cli")
-    if not os.access(cli, os.X_OK):
-        sys.exit("ipipe-cli not found; install it via the ipipe-official skill")
-    return cli
+    if os.access(cli, os.X_OK):
+        return cli
+    # Not installed: fetch the official ipipe-official package and install the CLI.
+    ensure = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ensure_ipipe.sh")
+    proc = subprocess.run(["bash", ensure], capture_output=True, text=True)
+    if proc.returncode != 0:
+        sys.exit(f"ipipe-cli missing and auto-install failed:\n{proc.stderr}")
+    return proc.stdout.strip()
 
 
 def ipipe(cli: str, *args: str) -> object:
@@ -69,7 +74,8 @@ def main() -> int:
                     help="ChangePipeline-dev/dp 集成流水线【GPU】")
     ap.add_argument("--timeout", type=int, default=3600)
     ap.add_argument("--interval", type=int, default=45)
-    ap.add_argument("-o", "--output", help="write JSON {image, build_url} here")
+    ap.add_argument("--base-image", default="", help="user-confirmed base image, echoed to output")
+    ap.add_argument("-o", "--output", help="write JSON {image, base_image, build_url} here")
     args = ap.parse_args()
 
     cli = find_cli()
@@ -87,7 +93,8 @@ def main() -> int:
             print(image)
             if args.output:
                 with open(args.output, "w") as fh:
-                    json.dump({"image": image, "build_url": build["buildUrl"]}, fh)
+                    json.dump({"image": image, "base_image": args.base_image,
+                               "build_url": build["buildUrl"]}, fh)
             return 0
         if build and task and state not in PENDING:
             print(f"image build ended {state}: {build['buildUrl']}", file=sys.stderr)
