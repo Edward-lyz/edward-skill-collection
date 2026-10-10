@@ -68,6 +68,15 @@ HOT_PATHS = (
     "entrypoints/openai/serving",
 )
 
+# Default migration scope: monitoring (A2) + multimodal. Everything else needs an
+# explicit user request. C1/X/C2 never count (dropped / noise / handled by the image card).
+MM_RE = re.compile(
+    r"multimodal|多模态|\bEPD\b|encode[_ -]?(server|stage)|\bvit\b|\bvlm?\b"
+    r"|video|视频|image|图片|mm_|processor|embedding",
+    re.IGNORECASE,
+)
+NEVER_IN_SCOPE = {"C1", "C2", "X"}
+
 
 def run_git(repo: str, *args: str) -> str:
     proc = subprocess.run(
@@ -81,6 +90,14 @@ def hint(patterns: list[tuple[str, str]], title: str, default: str) -> str:
         if re.search(pattern, title, re.IGNORECASE):
             return tag
     return default
+
+
+def default_scope(cat: str, title: str, files: list[str]) -> str:
+    if cat in NEVER_IN_SCOPE:
+        return "out"
+    if cat == "A2":
+        return "monitor"
+    return "multimodal" if MM_RE.search(title + " " + " ".join(files)) else "out"
 
 
 def difficulty(
@@ -158,6 +175,7 @@ def main() -> None:
         rows.append({
             "sha": sha, "date": date, "author": author, "card": card, "title": title,
             "cat_hint": cat, "cat": "", "feature": "", "model": model, "files": len(files),
+            "scope_hint": default_scope(cat, title, files),
             "add": add, "del": dele, "fork_only": fork_only, "conflict_hist": conflict,
             "difficulty": difficulty(lines, fork_only, len(files), conflict, hot),
             "icode": args.icode_template.format(sha=full)
@@ -189,9 +207,10 @@ def main() -> None:
         md.append(f"| {card} | {len(rs)} | {lines_sum:,} | {fo}/{nf} | {cf} | {mix} |")
     (out_dir / "cards_summary.md").write_text("\n".join(md) + "\n")
     print(f"{len(rows)} commits, {len(cards)} cards -> {tsv}")
+    in_scope = [r for r in rows if r["scope_hint"] != "out"]
+    print(f"scope_hint (默认只迁监控+多模态): {len(in_scope)}/{len(rows)} commits")
     print("cat/feature 列为空，人工确认 cat_hint 后填入；混合卡逐提交定类，特性绑定块打 feature 标签。")
 
 
 if __name__ == "__main__":
     main()
-

@@ -1,6 +1,6 @@
 ---
 name: sglang-fork-rebase-first
-description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。fork 相对旧基线的提交先按七类台账定去留（社区已收录丢弃、非交付模型不迁、特性绑定按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像四件套放栈底；重放完成的判据是平台契约自动核对零退出码——路由、指标族、req_id trace、token id dump、日志 schema、厂内环境变量逐项在位。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放、监控指标有没有漏迁、平台契约核对。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
+description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。默认只迁移多模态和监控两类 PR（其余类别需用户明确要求）；本机 uv 环境优先、GPU 或依赖装不上时 fallback 远端开发机；重放完成后自动提交 CR（refs/for）并从 ChangePipeline 的「构建镜像」任务取回镜像地址。fork 相对旧基线的提交先按七类台账定去留（社区已收录丢弃、非交付模型不迁、特性绑定按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像四件套放栈底；重放完成的判据是平台契约自动核对零退出码——路由、指标族、req_id trace、token id dump、日志 schema、厂内环境变量逐项在位。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放、监控指标有没有漏迁、平台契约核对、提交 CR 拿镜像。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
 ---
 
 # 追社区：基线直换 + 台账化重放
@@ -38,6 +38,10 @@ references/pr-taxonomy.md。
 3. pick 集相对交付判定，两根轴：**模型轴**——B 类只在交付就是该模型时迁（给 GLM 追新，K3
    专属不迁；K3 自己追新照迁）；**特性轴**——特性绑定的 A 类只在交付开启该特性时迁。台账里
    类别、模型标签、特性是三个独立字段。
+   **默认范围只有两类：监控（A2）和多模态（EPD/encode/视频图像预处理等特性绑定块）。**
+   其余 A1/A3/A4/A5 和 B 类默认不迁，不为它们向用户确认；用户点名要加某类时才扩大，并把
+   扩大的类别写进台账 decision 列。`fork_pr_inventory.py` 的 `scope_hint` 列按这个默认范围
+   预标（monitor / multimodal / out），人工复核后落进 decision。
 4. 丢弃要有证据。C1 的每一条要么标题带社区 PR 号，要么能在 NEW_BASE 里指到等价实现（rg
    符号或文件）。厂内 pick 时常带私改：diff 厂内版与社区版，私改部分拆出来按 A/B 类处置，
    不能凭标题相似整条丢。
@@ -57,12 +61,22 @@ references/pr-taxonomy.md。
 10. 产物是提交序列，不是一个 diff。每笔都从**远端 ref 上的原提交** pick，pick 前
     `git merge-base --is-ancestor <sha> <remote-ref>` 确认远端确实有它；只有远端不可达
     （提交没推过、分支已删）才退到打补丁，并在正文里写明这一笔是补丁兜底。
+11. 环境本机优先：先 `scripts/pick_env.sh <static|unit|gpu>`，输出 `local <venv>` 就在
+    本机 uv venv 里跑，输出 `remote <host>` 才走 dev-machine-remote（`rdev.py sync push` 同步
+    worktree，`rdev.py exec` 执行，长任务按该 skill 走后台）。判据：静态步骤（台账、pick、
+    ruff、契约核对、residual、CR、取镜像）全在本机，它们只依赖 git 和 stdlib；单测在 venv
+    装得上 torch 与 `sglang.srt` 才留本机；EPD 起服务、kernel 测试一律远端。fallback 要在
+    台账里记一行原因，不静默切换。
+12. 重放完成并通过本地门禁后，**自动提交 CR 并取回镜像地址**，不再停下来问用户要不要推
+    （refs/for 评审提交可撤销，已由本规则授权）：`scripts/submit_cr.sh` → `scripts/cr_image.py`。
+    受保护分支仍然不直推。流程见第 8 步。
 
 ## 流程
 
 ### 0 冻结与台账
 
 ```bash
+ENV=$(bash "$SKILL_DIR/scripts/pick_env.sh" static)   # 硬规则 11：local <venv> 或 remote <host>
 FORK_SHA=$(git rev-parse --verify "$FORK_REF^{commit}")
 NEW_BASE_SHA=$(git rev-parse --verify "$NEW_BASE_REF^{commit}")
 OLD_BASE_SHA=$(git merge-base "$FORK_SHA" "$NEW_BASE_SHA")
@@ -82,10 +96,12 @@ cards_summary.md（卡片聚合）。HINT 只是关键词启发，**每张卡人
 
 ### 1 用户确认 pick 集
 
-拿台账问三件事：交付模型是什么（决定 B 类去留）；交付开启哪些特性（多模态 EPD、
-AttentionStore、DSpark、VL——不开的特性块整块跳过，发版 YAML 同步去开关；开启且社区有 rival
-实现的，先 diff 社区版再定搬什么）；C2 工程物（ci.yml、Dockerfile、单测流水）哪些跟着新镜像
-走。确认结果写进台账的 decision 列。
+默认 pick 集 = 监控 + 多模态（硬规则 3），不需要再问。只有两件事仍要对着台账确认，且
+能从上下文推出就不问：交付模型是什么（多模态块里 B 类的模型专属部分去留）；多模态块
+在社区是否有 rival 实现（有则先 diff 社区版再定搬什么）。AttentionStore、DSpark、VL
+kernel、通用 BUGFIX 等其余特性整块跳过，发版 YAML 同步去开关；用户明确要求时再加。C2
+里的镜像四件套是交付管道，不算「迁移 PR」，始终随栈底一卡进入（第 6 步），因为自动取镜像
+依赖它。确认结果写进台账的 decision 列。
 
 A1 链路适配 + A2 监控适配 + A5 通用 BUGFIX 这部分在 DSv4.1 那轮已经落成一个 diff 加一份逐卡
 台账，见 references/internal-platform-stack.md：追新基线时拿它当重放起点和平台契约对照物，
@@ -198,8 +214,9 @@ aiak-inference 镜像）的最近交付分支。自创 `Dockerfile.<x>` / `build
 bash "$SKILL_DIR/scripts/check_image_layout.sh" "$DELIVERY_TIP" "$NEW_BASE_SHA" "$TEMPLATE_BRANCH"
 ```
 
-完成判据：脚本零退出码。本机没有 docker 时到此为止，镜像构建与上机冒烟记 deferred。逐步
-继承清单与两种 COPY 策略见 references/delivery-image.md。
+完成判据：脚本零退出码。镜像不在本机构建：CR 流水线的「构建镜像」任务会构建并产出地址，
+由第 8 步自动取回。本机没有 docker 不再是 deferred 理由；上机冒烟仍按验证点 3 在远端做。
+逐步继承清单与两种 COPY 策略见 references/delivery-image.md。
 
 ### 7 平台契约反向核对
 
@@ -321,10 +338,29 @@ references/verification-ladder.md。
 陷阱（hostNetwork IP 串台、带 label 指标要等首次观测、两个 collector 分开判）、发版 YAML 监控
 必查项、不重启 POD 的三方 md5 热替验收。迁完监控代码和判「指标缺失」之前各读一遍。
 
-### 8 发布
+### 8 发布：自动提交 CR 并取镜像地址
 
-逐卡走 refs/for 送审，一卡一个 change。评审系统限单批数量时按类分批（A1 一批、A2+A3 一批
-……），别退回整支 squash——粒度是这条路线的核心收益。
+逐卡走 refs/for 送审，一卡一个 change。评审系统限单批数量时按类分批（监控一批、多模态
+一批），别退回整支 squash——粒度是这条路线的核心收益。门禁和契约核对全绿后直接执行：
+
+```bash
+bash "$SKILL_DIR/scripts/submit_cr.sh" "$TARGET_BRANCH" --base "$NEW_BASE_SHA" \
+  | tee "$ARTIFACTS/cr-push.txt"
+TIP=$(git rev-parse HEAD)
+python3 "$SKILL_DIR/scripts/cr_image.py" --revision "$TIP" \
+  -o "$ARTIFACTS/image.json" | tee "$ARTIFACTS/image.txt"
+```
+
+`submit_cr.sh` 先校验每笔都有 Change-Id（缺了会多开 change）、工作区干净、目标不是
+master/main，再 `git push origin HEAD:refs/for/<target>`；`--dry-run` 只做校验。
+`cr_image.py` 用 `ipipe-cli build commit` 按 tip SHA 找 ChangePipeline（conf 2205943）的
+构建，轮询到「构建镜像」任务结束，从其 outParams 的 `NORMAL_IMAGE_VERSION` 取地址，形如
+`iregistry.baidu-int.com/hac_test/aiak-inference-sglang:<user>_<yyyymmdd>_<hhmmss>`。用 tip
+而不是第一笔：每个 change 的 CI checkout 自己那条 ref，只有 tip 的镜像含整栈。退出码
+0 = 取到、1 = 构建失败（stderr 给 buildUrl，按 ipipe-official 看日志）、2 = 超时。
+需要 ipipe-cli 已登录（`ipipe-cli login status`），没登录就报 `ipipe-official` 的登录步骤
+并停下，这是唯一需要用户介入的点。镜像失败的修复提交要保留原 Change-Id 再推，镜像
+地址随新 patchset 重取。机制与字段见 references/cr-image.md。
 
 改已推过的评审必须保留原 Change-Id：换消息文件时 commit-msg hook 会生成新的，icode 会拒并
 提示 `git fetch ... refs/changes/<nn>/<change>/<ps>` 重放；带原 Change-Id 再
