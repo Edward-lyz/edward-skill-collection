@@ -46,3 +46,13 @@ Contract and rules: `aiak-loop` repo, `loop-design/aiqa-trigger-config-contract.
 - Evalscope `evalscope_expand_dataset`: tau2_bench, tool_bench, bfcl_v3, multi_if. `evalscope_vlm_dataset`: mmmu, ocr_bench_v2, mm_star, mm_bench, math_vista, mmmu_pro, simple_vqa, math_vision, zerobench, blink, omni_doc_bench, infovqa, ocr_bench. `evalscope_v2t_dataset`: general_fc, bfcl_v3, tool_bench, video_mme, videomme_v2, msvd, mvbench.
 - Evalscope history: `evalscope_v2t_dataset=general_fc` in 67 of 100 builds, `evalscope_llm_dataset=None` in 94, `inference_concurrency=50`, `inference_sampling=2000`, `inference_temperature=0.7`.
 - OpenCompass history: full 12-dataset `inference_data` in 78 of 100 builds, concurrency 30, sampling 100.
+
+## 压测自动化 (pipeline 2353017, scenario `stress`)
+
+Findings of 2026-10-15. Stages: `编译` → `环境部署-参数校验` (manual) → `环境部署-环境部署（新建或扩缩容）` (SKIPPED when `skip_deploy_env=true`) → `DeepSeek压测` (manual; jobs `环境执行状态告警`, `环境变量更新`, `aiakperf压测`) → `自动保存日志` → `通知`. Of 125 builds only 10 ever ran the压测 stage; the other builds stop at `PENDING_FOR_USER`, so "last 10 builds" must mean the last 10 builds whose stage status is SUCC, FAIL or CANCEL.
+
+- `build history --module M --limit 1500` lists builds of every pipeline in the module (about 1 s); filter on `pipelineConfId`.
+- The stage's inputs are not returned by any CLI call. Recover them from the job logs (`set -x` trace): `aiak_perf.py` flags in the `aiakperf压测` log (`--n` is `num_requests`, `--of` is `fixed_output_length`, `--host` is `as_address`), and `dataset: '<label>##<file>'` in the alert job log. `scripts/stress_history.py` does this and prints the mode per key.
+- Stage 1 sets `specific_model_path` and `prefill_job_name` in AGILE_OUT. `specific_k8s_pod=NA` makes `环境变量更新` run `kubectl get pod | grep <prefill_job_name> | grep prefill | head -n 1`; the default model path is `/pipeline-<model_id with - for _>`.
+- The aiakperf job script embeds an inference credential in plain text. Never print job commands or whole log lines; print parsed flags only.
+- Past runs: 12 h (`run_time_second=43200`) in 6 of 9 parsed runs; datasets `output_glm5-260331.jsonl` 4, `image2text_qianfan_total.jsonl` 2, others 1 each; qps differs per model (0.3 to 13).

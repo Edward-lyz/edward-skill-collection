@@ -11,6 +11,7 @@
     "功能回归": "regression", "regression": "regression",
     "高可用": "ha", "ha": "ha",
     "性能": "perf", "perf": "perf",
+    "压测": "stress", "长稳": "stress", "stress": "stress", "aiakperf": "stress",
     "ai智能测试": "aiqa", "aiqa": "aiqa"
   },
   "scenarios": {
@@ -78,7 +79,7 @@
           "ask": [
             {"key": "inference_model", "why": "被测 modelid", "hint": "aiak_bzz2_deepseek_v4_community_qa4"},
             {"key": "inference_model_lite", "why": "评分基线（历史最常用 V3.2_1th-think 56%、DS-V4-Pro-nothink 17%）",
-             "choices": ["unknown_model_without_think", "unknown_model_with_think", "V3.2_1th-think", "V3.2_1th-nothink", "GLM5_nothink", "GLM5_think", "GLM-52-nothink", "GLM-52-think", "Kimi-K26-nothink", "Kimi-K26-think", "DS-V4-Pro-nothink", "DS-V4-Pro-think", "dsv4_no_think_hzz1", "dsv4_think_none_hzz1", "dsv4_think_high_hzz1", "dsv4_think_max_hzz1"]}
+             "choices": ["unknown_model_without_think", "unknown_model_with_think", "V3.2_1th-think", "V3.2_1th-nothink", "GLM5_nothink", "GLM5_think", "GLM-52-nothink", "GLM-52-think", "Kimi-K26-nothink", "Kimi-K26-think", "DS-V4-Pro-nothink", "DS-V4-Pro-think", "DS-V4.1-Flash-nothink", "DS-V4.1-Flash-think", "dsv4_no_think_hzz1", "dsv4_think_none_hzz1", "dsv4_think_high_hzz1", "dsv4_think_max_hzz1"]}
           ],
           "optional": ["comment", "inference_host"]
         }
@@ -133,7 +134,7 @@
           "ask": [
             {"key": "model_id", "why": "被测 modelid；弹窗默认 aiak_deepseek_r1_test 是占位值", "hint": "aiak_bzz2_deepseek_v4_community_qa4"}
           ],
-          "optional": []
+          "optional": ["run_type", "inference_host"]
         }
       ]
     },
@@ -176,6 +177,42 @@
             {"key": "dataset_name", "why": "压测数据集（历史 kvc 专属集 41%）", "hint": "kvc专属压测集##kvc-0331dataset-subset20.jsonl"}
           ],
           "optional": ["perf_scenario"]
+        }
+      ]
+    },
+    "stress": {
+      "title": "压测自动化（长稳，DeepSeek压测 / aiakperf）",
+      "pipeline_id": 2353017,
+      "verified": "fixed values = mode of the last 10 executed runs (builds 3245-3355), recovered from job logs by scripts/stress_history.py; manual-param keys inferred from the job shell variables; not triggered by us",
+      "heavy": true,
+      "stages": [
+        {
+          "match": "参数校验",
+          "expect_skipped": "新建或扩缩容",
+          "fixed": {"skip_deploy_env": "true"},
+          "ask": [
+            {"key": "model_id", "why": "被测 modelid", "hint": "aiak_bzz2_deepseek_v41_community_rd3"},
+            {"key": "prefill_job_name", "why": "Prefill FedDeployment 名；脚本用它在 kubectl get pod 里找 prefill pod，默认的 pipeline-<用户>-<编号>prefill 对手工部署的环境不成立", "hint": "liuwei88-ds-v4-opt-8-deepseek-liyanzhen01-v41-1013-prefill"},
+            {"key": "specific_model_path", "why": "发压 pod 内的模型路径（做 tokenizer）；留空会落到 /pipeline-<model-id>，手工部署的 P 不成立，取 P 的 --model-path", "hint": "/DeepSeek-V4.1-Flash-20260910"}
+          ],
+          "optional": ["decode_job_name", "encode_job_name"]
+        },
+        {
+          "match": "DeepSeek压测",
+          "fixed": {
+            "dataset_name": "deepseek_v4数据集##output_glm5-260331.jsonl", "dataset_url": "NA",
+            "num_requests": "8000000", "run_time_second": "43200", "fixed_output_length": "8092",
+            "k8s_mode": "True", "dataset_type": "chat", "runner_type": "qianfan_v2",
+            "qps_strategy": "fixed_instances", "enable_thinking": "false", "aiak_perf_version": "1.6.1",
+            "port": "1", "thinking_budget": "NA", "as_address": "http://10.178.29.70:80",
+            "specific_k8s_pod": "NA"
+          },
+          "ask": [
+            {"key": "model_id", "why": "被测 modelid", "hint": "aiak_bzz2_deepseek_v41_community_rd3"},
+            {"key": "prefill_job_name", "why": "Prefill FedDeployment 名；specific_k8s_pod=NA 时脚本取 grep 到的第一个 prefill pod 发压", "hint": "liuwei88-ds-v4-opt-8-deepseek-liyanzhen01-v41-1013-prefill"},
+            {"key": "specific_model_path", "why": "发压 pod 内的模型路径（做 tokenizer）", "hint": "/DeepSeek-V4.1-Flash-20260910"},
+            {"key": "qps", "why": "跨模型无共同值（近 10 次为 0.2~13）；DeepSeek V4/V4.1 历史 0.3、0.4、0.5、0.8、1。与基线版本对比时取基线用过的值（v15.9.3.1 为 1）", "hint": "1"}
+          ]
         }
       ]
     },

@@ -78,17 +78,27 @@ def resolve_stage_params(stage: dict[str, Any], overrides: dict[str, str]) -> tu
 
 
 def resolve_plan(scn: dict[str, Any], overrides: dict[str, str]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Per-stage params for the whole recipe plus the union of missing ask entries."""
+    """Per-stage params for the whole recipe plus the union of missing ask entries.
+
+    A key may belong to one stage only (e.g. `qps` of the stress stage), so unknown keys are
+    checked against the union of all stages and each stage receives just the keys it declares.
+    """
     stages: list[dict[str, Any]] = []
     missing: list[dict[str, Any]] = []
     prev: dict[str, str] = {}
+    declared = [s for s in scn["stages"] if not s.get("same_params_as_previous")]
+    union = {k for s in declared for k in [*s.get("fixed", {}), *(a["key"] for a in s.get("ask", [])), *s.get("optional", [])]}
+    unknown = sorted(set(overrides) - union)
+    if unknown:
+        raise IpipeError(f"keys not in this recipe: {unknown}; allowed: {sorted(union)}")
     for stage in scn["stages"]:
         if stage.get("same_params_as_previous"):
-            stages.append({"match": stage["match"], "params": dict(prev)})
+            stages.append({"match": stage["match"], "params": dict(prev), "expect_skipped": stage.get("expect_skipped")})
             continue
-        params, miss = resolve_stage_params(stage, overrides)
-        missing += [m for m in miss if m not in missing]
-        stages.append({"match": stage["match"], "params": params})
+        own = {*stage.get("fixed", {}), *(a["key"] for a in stage.get("ask", [])), *stage.get("optional", [])}
+        params, miss = resolve_stage_params(stage, {k: v for k, v in overrides.items() if k in own})
+        missing += [m for m in miss if m["key"] not in {x["key"] for x in missing}]
+        stages.append({"match": stage["match"], "params": params, "expect_skipped": stage.get("expect_skipped")})
         prev = params
     return stages, missing
 
@@ -149,6 +159,12 @@ def start_pipeline(scn: dict[str, Any], cfg: dict[str, Any], stages: list[dict[s
         started.append(stage["match"])
         if idx < len(stages) - 1:  # next manual stage only unlocks after this one finishes
             wait_stage(pbid, stage["match"], {"SUCC", "SKIPPED"}, STAGE_WAIT_SECONDS)
+        guard = stage.get("expect_skipped")
+        if guard:  # a deploy stage that runs instead of skipping replaces the live environment
+            deploy = wait_stage(pbid, guard, {"SKIPPED", "RUNNING", "SUCC", "FAIL", "CANCEL"}, STAGE_WAIT_SECONDS)
+            if deploy["status"] != "SKIPPED":
+                raise IpipeError(f"stage {guard!r} is {deploy['status']}, expected SKIPPED: build {pbid} is redeploying; "
+                                 "cancel it with `ipipe-cli build cancel` before it replaces the environment")
     return {"pipelineBuildId": pbid, "buildNumber": res.get("buildNumber"),
             "url": BUILD_URL.format(ws=cfg["workspace_id"], pbid=pbid), "started_stages": started}
 
