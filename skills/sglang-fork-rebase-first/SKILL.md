@@ -1,6 +1,6 @@
 ---
 name: sglang-fork-rebase-first
-description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。默认只迁移多模态和监控两类 PR（其余类别需用户明确要求）；本机 uv 环境优先、GPU 或依赖装不上时 fallback 远端开发机；重放完成后自动提交 CR（refs/for）并从 ChangePipeline 的「构建镜像」任务取回镜像地址。fork 相对旧基线的提交先按七类台账定去留（社区已收录丢弃、非交付模型不迁、特性绑定按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像四件套放栈底；重放完成的判据是平台契约自动核对零退出码——路由、指标族、req_id trace、token id dump、日志 schema、厂内环境变量逐项在位。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放、监控指标有没有漏迁、平台契约核对、提交 CR 拿镜像。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
+description: 追社区新版本的二分法：社区基线直换 + 厂内 PR 台账化选择重放。默认只迁移多模态和监控两类 PR（其余类别需用户明确要求）；本机 uv 环境优先、GPU 或依赖装不上时 fallback 远端开发机；重放完成后自动提交 CR（refs/for）并从 ChangePipeline 的「构建镜像」任务取回镜像地址。fork 相对旧基线的提交先按七类台账定去留（社区已收录丢弃、非交付模型不迁、特性绑定按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像四件套放栈底；重放完成的判据是平台契约自动核对零退出码——路由、指标族、req_id trace、token id dump、日志 schema、厂内环境变量逐项在位。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放、监控指标有没有漏迁、平台契约核对、提交 CR 拿镜像、base 镜像版本锚核对、重放后部署测试、提测发版报告。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库；pick 冲突语义与合并后门禁复用 sglang-pr-rebase-or-pick。
 ---
 
 # 追社区：基线直换 + 台账化重放
@@ -75,7 +75,9 @@ references/pr-taxonomy.md。
     Dockerfile 的 FROM，形如 `iregistry.baidu-int.com/...:tag`）。用户没给就问；给了或者
     从模板推出了候选，也要把完整地址原样回显、等用户明确回复确认后才继续——不因「模板里
     就是这个」自行确认。确认结果写进台账，Dockerfile 的 FROM 必须与之逐字一致，
-    `submit_cr.sh` 会校验，未确认或不一致就拒绝推送。
+    `submit_cr.sh` 会校验，未确认或不一致就拒绝推送。确认的是地址，不是兼容性：提交 CR 前还要跑
+    `scripts/check_base_image_pins.py`，拿新基线 `python/pyproject.toml` 的 torch / sglang-kernel pin
+    对这个镜像的 `pip list`，不过就换 base 再确认（见第 6 步）。
 
 ## 流程
 
@@ -225,6 +227,22 @@ bash "$SKILL_DIR/scripts/check_image_layout.sh" "$DELIVERY_TIP" "$NEW_BASE_SHA" 
 完成判据：脚本零退出码。镜像不在本机构建：CR 流水线的「构建镜像」任务会构建并产出地址，
 由第 8 步自动取回。本机没有 docker 不再是 deferred 理由；上机冒烟仍按验证点 3 在远端做。
 逐步继承清单与两种 COPY 策略见 references/delivery-image.md。
+
+**换基线时 BASE_IMAGE 要跟着换代。** DSv4.1 flash（2026-10）用户先确认了旧的厂内 dev 基础镜像
+`…/sglang:dev-dsv41`，里面是 torch 2.13 / sglang-kernel 0.4.6.post1，而新基线固定 torch==2.14.1、
+sglang-kernel==0.4.9：镜像构建成功，服务一启动就报 `sglang-kernel 0.4.6.post1 is less than the minimum
+required version 0.4.9` 退出，整轮 CR 镜像白建，最后改用与基线同代的社区 nightly（cu13）。所以确认完地址、
+提交 CR 之前：
+
+```bash
+docker run --rm --entrypoint python3 "$BASE_IMAGE" -m pip list --format=json > "$ARTIFACTS/base-pip.json"
+python3 "$SKILL_DIR/scripts/check_base_image_pins.py" \
+  --pyproject "$WORKTREE/python/pyproject.toml" --pip-list "$ARTIFACTS/base-pip.json" \
+  -o "$ARTIFACTS/base-pins.md"
+```
+
+零退出码才继续。其余 pin 只列 WARN（运行时只断言少数几个包，Dockerfile 还会再装一批）。本机没有 docker 就在
+远端开发机上跑 `pip list`。
 
 ### 7 平台契约反向核对
 
@@ -379,6 +397,18 @@ ipipe-official 包，按其 SKILL.md 里的版本与安装脚本装好 CLI（官
 `git commit --amend` 就是正常的下一个 patchset。LLM 评审的 BLOCK 报告逐条核实再改，本轮 9 条
 里 2 条是误报，误报也要把判据写进回复。
 
+### 9 部署与测试（外部阶段）
+
+镜像取回后部署 E/P/D，按「精度 → FC → 功能回归 → 长稳」触发 ipipe 流水线（走 `ipipe-run-pipeline` skill，
+长稳用其 `stress` 场景的默认值：12 h、数据集取最近 10 次执行里出现最多的、Prefill pod 内发压）。起服务前
+先做 import 冒烟与启动参数反查；部署命名、model_id 选取、测试判读，以及静态契约漏掉的 4 个运行期缺陷，
+见 references/deploy-and-test.md。
+
+### 10 提测发版报告
+
+报告按知识库的发版文档格式写，章节骨架、写法规则和发 KU 的约束见 references/release-report.md。流水线结果
+原样写入，没做的写「未执行」，修复后没重跑的写「推断」。
+
 ## 难度预判（分级用信号，不用感觉）
 
 | 级别 | 信号 | 处置 |
@@ -420,3 +450,11 @@ ipipe-official 包，按其 SKILL.md 里的版本与安装脚本装好 CLI（官
   `SchedulerBatchResultProcessor`，只验了 PD 分离，集中式压测时请求在 prefill 结束即
   `AttributeError: 'SchedulerBatchResultProcessor' object has no attribute 'server_args'`，
   全部 TP rank 退出。所以集中式也要起，起不了做上面的静态检查。
+- 同一类错误会在不同卡上复发：DSv4.1 flash 的非 PD 部署里，Prefill 读 `self.server_args.enable_metrics`
+  又让调度器退出（改成 `get_observability().enable_metrics`）。每张监控卡 pick 完都跑一遍上面的
+  `rg '^\+.*self\.(server_args|enable_metrics)\b'`，不要等到集中式起服务。
+- `from X import Y` 里的 Y 被社区重构掉，既不是 F821 也不影响契约核对，只在角色启动时 ImportError
+  （luno-5185 引用的 `decode_image`，社区已改为 `patchify_image`）。每卡 pick 完在 BASE_IMAGE 里做 import 冒烟。
+- 社区改行为不改结构，也会让厂内用例失败：V4.1 的工具调用约束换成 xgrammar 内置 XML 约束后，
+  `tool_choice=required` 的非标识符参数名被改写。修法是 required / 指定函数走 JSON 约束，auto 保持内置约束；
+  全部改 JSON 会让 FC 的 tool_calls 数从 940 掉到 677，所以拆成两条路径。这类缺陷只有功能回归能发现。
