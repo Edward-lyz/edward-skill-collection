@@ -75,6 +75,26 @@
 77）；每个结果写明用的是哪个镜像 tag，修复后没有重跑的项标「推断，未实测」；pipeline 日志按
 ipipe-run-pipeline 的方法取，不要用 `result` 下载 GB 级日志。
 
-## 9.4 没覆盖到的
+## 9.4 经验补充（1017 轮）
 
-带真实图片的 E→P→D 端到端请求、性能压测。不要把它们写成已验证；报告里写「未做」。
+- 二次追新：上一轮已审的候选栈整套 cherry-pick 到新 main，再补新卡，冲突很少；pick 前先看新 main 的
+  pyproject，核对 base 镜像的 sglang-kernel / torch / flashinfer 是否覆盖（`check_base_image_pins.py`），
+  版本不够就换更新的社区 nightly，BASE_IMAGE 要用户逐字确认。
+- 取镜像：`cr_image.py` 可能一直报 NO-BUILD-YET。改用 `ipipe-cli build history --module <模块>` 找
+  pipelineConfId 对应本分支的最新构建，再 `ipipe-cli build tasks --pipeline-build-id N`，读「构建镜像」任务的
+  `outParams.NORMAL_IMAGE_VERSION`。
+- 社区重写的批处理会让厂内批级标量字段（如 `detokenize_completed_time`）被按 dataclass 字段切片，表现为
+  Detokenizer 退出、`/health_forward` 一直 503。部署后先看 P/D 的 `/health_forward`，不通就看进程日志。
+- 检测器/语法类改动先在集群 pod 里做探针：把文件打包同步进 pod（`COPYFILE_DISABLE=1 tar`，rdev sync 到
+  virtualMachine，`kubectl cp`），在 pod 里跑 xgrammar 单测和含 `$ # & < "` 的参数名探针，再出镜像。
+- 带图请求：`scripts/mm_probe.py <P_IP> <D_IP>` 在 D 内运行，扮演路由给 P、D 发同一 `bootstrap_room`
+  的带图 chat 请求，回答写进报告。PE 不分离时 P 自己做图像编码。
+- 长稳（压测自动化）的「参数校验」阶段有 `model_path_local` / `model_nextn_path_local` 两个手填参数，默认值是上一个人
+  遗留的（如 GLM 路径 + V4-Pro nextn），与当前集群类型不匹配会让阶段失败。skip_deploy_env=true 时把两个都置空
+  （`--set model_path_local= --set model_nextn_path_local=`）即跳过校验。
+- 结果日志太大时，用 `ipipe-cli build job` 取 logonline URL，流式读取并只保留关键行，或用 Range 读尾部。
+- 修复后的最终镜像应把精度/FC/回归整套重跑，报告只列最终镜像的结果，更早镜像的结果只在一句话里说明。
+
+## 9.5 没覆盖到的
+
+性能压测。不要把它们写成已验证；报告里写「未做」。
