@@ -195,7 +195,7 @@
             {"key": "prefill_job_name", "why": "Prefill FedDeployment 名；脚本用它在 kubectl get pod 里找 prefill pod，默认的 pipeline-<用户>-<编号>prefill 对手工部署的环境不成立", "hint": "liuwei88-ds-v4-opt-8-deepseek-liyanzhen01-v41-1013-prefill"},
             {"key": "specific_model_path", "why": "发压 pod 内的模型路径（做 tokenizer）；留空会落到 /pipeline-<model-id>，手工部署的 P 不成立，取 P 的 --model-path", "hint": "/DeepSeek-V4.1-Flash-20260910"}
           ],
-          "optional": ["decode_job_name", "encode_job_name"]
+          "optional": ["decode_job_name", "encode_job_name", "model_path_local", "model_nextn_path_local"]
         },
         {
           "match": "DeepSeek压测",
