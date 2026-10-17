@@ -24,6 +24,27 @@
    参考 YAML 不是参数契约：P 的并行方式也要重排（v15.9.3.1 是 tp4/ep4 + `--fake-dp 2`，新基线不认
    `--fake-dp`，8 卡独占时改 tp8/ep8，D 保持 tp8/dp8/ep8）。
 
+### 9.1.1 社区单测是第四道门
+
+第二轮（基线直换到 1017 main）起，起服务之后、跑 ipipe 之前，把候选 tip 的改动文件拷进已部署的 P/D pod，
+用 `scripts/run_unit_files.sh` 逐文件跑 `observability entrypoints function_call managers disaggregation parser`
+的 CPU 单测。整目录跑会被第一个收集错误或挂起的文件拖住，所以脚本是一文件一进程加超时。结果落在
+容器重启也不丢的卷上（`/shared`），因为启动探针一直失败的 pod 约每 50 分钟重启一次，`/tmp` 随之清空。
+
+这一道门第二轮抓出两类问题，静态契约和 ipipe 都发现不了：
+
+- **真缺陷**：社区把多 tokenizer 的批输出拆分改成按 dataclass 字段通用切片，厂内给 `BatchStrOutput` 加的批级
+  标量 `detokenize_completed_time` 被当成逐请求列表切，Detokenizer 报 `object of type 'float' has no len()`
+  退出，P 和 D 的 `/health_forward` 永远 503。修法是把批级标量放进 `_NOT_SPLIT_FIELDS` 并整份带进子批
+  （`test_multi_tokenizer_mixin.py` 已补用例）。以后给 `Batch*Output` 加字段，先问它是批级还是逐请求。
+- **测试桩与新代码不匹配**：厂内加的 `self.metrics_reporter.enable_metrics`、`iter_start_time`、
+  `_build_metrics_labels` 等读取，让社区用 `SimpleNamespace` / `__new__` 搭的桩缺属性。逐个补桩，不要给产品代码
+  加 `getattr` 兜底；真实 Scheduler 在 `__init__` 里都有这些属性。
+
+另有一类要判断是不是「该改测试」还是「该改代码」：厂内行为刻意偏离社区时（例如 luno-4784 把中止计数从发起时
+挪到生效时），改测试并在注释里写明；社区测试钉住的是社区想要的行为时（例如事件循环里的轮询顺序），厂内改动
+应该让路，不要改测试。
+
 ## 9.2 部署
 
 - kubectl 经 virtualMachine 开发机；命名空间、kubeconfig 取该机已有配置。先 `kubectl apply --dry-run=server`
