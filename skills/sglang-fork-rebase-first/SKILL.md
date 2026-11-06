@@ -1,6 +1,6 @@
 ---
 name: sglang-fork-rebase-first
-description: 把厂内 fork 升级到社区新版本：直接从社区新版本开新分支，再按分类清单挑出厂内提交重放上去。默认只迁移多模态和监控两类 PR（其余类别需用户明确要求）；本机 uv 环境优先，GPU 或依赖装不上时改用远端开发机；重放完成后自动提交 CR（refs/for）并从 ChangePipeline 的「构建镜像」任务取回镜像地址。fork 相对旧基线的提交先按七个类别定去留（社区已收录的丢弃、非交付模型的不迁、绑定特性的按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像构建文件放在最底下一笔；重放完成的判据是平台契约自动核对零退出码，即路由、指标族、req_id trace、token id dump、日志 schema、厂内环境变量逐项在位。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放、监控指标有没有漏迁、平台契约核对、提交 CR 拿镜像、base 镜像版本锚核对、重放后部署测试、提测发版报告。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库。
+description: 把厂内 fork 升级到社区新版本：直接从社区新版本开新分支，再按分类清单挑出厂内提交重放上去。默认迁移链路、监控、多模态和 CI 四类 PR，框架层优化逐笔判受益面、所有模型受益的默认迁入（其余类别需用户明确要求）；本机 uv 环境优先，GPU 或依赖装不上时改用远端开发机；重放完成后自动提交 CR（refs/for）并从 ChangePipeline 的「构建镜像」任务取回镜像地址。fork 相对旧基线的提交先按七个类别定去留（社区已收录的丢弃、非交付模型的不迁、绑定特性的按交付特性清单取舍），剩余按原始拓扑序逐卡 pick；交付镜像构建文件放在最底下一笔；重放完成的判据是平台契约自动核对零退出码，即路由、指标族、req_id trace、token id dump、日志 schema、厂内环境变量逐项在位。触发词：追社区、升级基线、base swap、厂内 PR 梳理、rebase 到新版本、交付镜像换基础镜像、厂内适配栈重放、监控指标有没有漏迁、平台契约核对、提交 CR 拿镜像、base 镜像版本锚核对、重放后部署测试、提测发版报告。适用于 fork 与上游长期分叉、整支 merge 成本已失控的仓库。
 ---
 
 # 追社区：从社区新版本开分支，按分类清单重放厂内提交
@@ -80,15 +80,19 @@ references/pr-taxonomy.md。
 3. pick 集按交付内容判定，看两个维度：**模型**：B 类只在交付就是该模型时迁（给 GLM 追新，K3
    专属不迁；K3 自己追新照迁）；**特性**：绑定特性的 A 类只在交付开启该特性时迁。分类清单里
    类别、模型标签、特性是三个独立字段。
-   **默认范围只有两类：监控（A2）和多模态（EPD/encode/视频图像预处理等特性绑定块）。**
-   其余 A1/A3/A4/A5 和 B 类默认不迁，不为它们向用户确认；用户点名要加某类时才扩大，并把
-   扩大的类别写进分类清单 decision 列。A1 没点名时，平台探针（`/ready`、`/health`、`/health_forward`）
-   和网关字段就不会迁，交付报告里要单独列一行「平台探针/网关链路未迁，平台侧接入会失败」，
-   让用户看到这个后果后再决定要不要补点名。`fork_pr_inventory.py` 的 `scope_hint` 列按这个默认范围
-   预标（monitor / multimodal / out），人工复核后落进 decision。
-   用户点名要框架层（CP、MegaMoE、通用模型支持）时，A4 也不整类迁：逐个源提交过
-   references/pr-taxonomy.md 的「框架层提交的吸收判据」F1–F6，结论（吸收 / 随模型 /
-   已收录 / 暂缓 / 不迁）连同命中的判据号写进 decision 列。
+   **默认范围是四类：链路（A1）、监控（A2）、多模态（EPD/encode/视频图像预处理等特性绑定块）和
+   CI（C2）。** 框架层优化（A4）每轮都逐笔判受益面，全模型受益的默认迁入（见下）。其余 A3/A5 和
+   B 类默认不迁，不为它们向用户确认；用户点名要加某类时才扩大，并把扩大的类别写进分类清单 decision 列。`fork_pr_inventory.py` 的 `cat_hint` 按改动路径的新增行数投票
+   （`entrypoints/`、`serving_*`、tokenizer/detokenizer、`disaggregation/` 归链路，`observability/`、
+   metrics 归监控，`mem_cache/` 归 Cache，`models/`、`dsv4`、`deepseek_v4*` 等归模型，只改测试/CI
+   的归 C2），路径都不命中时才看标题关键词；`scope_hint` 列按默认范围预标（link / monitor /
+   multimodal / ci / framework / out），人工复核后落进 decision。
+   框架层（CP、MegaMoE、调度、量化 GEMM、通用模型支持）不整类迁：`scope_hint=framework` 的每笔
+   都过 references/pr-taxonomy.md 的「框架层提交的吸收判据」F1–F6，F4 先回答「是不是所有模型都
+   受益」：全模型受益的默认迁入；部分模型受益的，交付模型在名单里才迁；只有一个模型受益的随该
+   模型走。放在通用文件里不等于全模型受益，要看生效条件（`hasattr(model, ...)`、`model_type`
+   分岔）主线有几个模型满足。结论（吸收 / 随模型 / 已收录 / 暂缓 / 不迁）连同判据号和 F4 档位写进
+   decision 列。
 4. 丢弃要有证据。C1 的每一条要么标题带社区 PR 号，要么能在 NEW_BASE 里指到等价实现（rg
    符号或文件）。厂内 pick 时常带私改：diff 厂内版与社区版，私改部分拆出来按 A/B 类处置，
    不能凭标题相似整条丢。
@@ -112,8 +116,8 @@ references/pr-taxonomy.md。
    不等于可以发版，交付报告里要把 deferred 项排在最前面。
    静态重放完成报告（`$ARTIFACTS/static-replay-report.md`）按这个顺序写，缺一节就不算完成：
    (1) deferred 清单：每项写缺哪个输入、找谁要（BASE_IMAGE、REBASE_REMOTE、发版 YAML、平台确认项）；
-   (2) 未迁后果：未点名类别里的线上缺陷修复（分类清单 evidence 标「建议补点名」的）、A1 未点名时的
-   平台探针那一行、暂缓的平行实现能力；(3) 重放提交列表（短 SHA、主题、Change-Id、源 SHA）；
+   (2) 未迁后果：未点名类别里的线上缺陷修复（分类清单 evidence 标「建议补点名」的）、暂缓的平行实现能力；
+   (3) 重放提交列表（短 SHA、主题、Change-Id、源 SHA）；
    (4) 分类清单分布（五个词各几行）；(5) 验证点 1：通过项数、`contract-excluded.tsv` 条数和其中
    「原位置消失」项；(6) 验证点 2：残差四类数字、`accept-summary.md` 三类计数、抽检了哪几组、四条
    机检结果；(7) 门禁结果与 waiver；(8) 验证点 1 的三项手工核对（启动参数、label、面板），缺输入的写 deferred。
@@ -271,8 +275,8 @@ A1 链路适配 + A2 监控适配 + A5 通用 BUGFIX 这部分在 DSv4.1 那轮�
 分类清单，见 references/internal-platform-stack.md（diff 本身是 `assets/internal-platform-stack-dsv41.diff`，
 只当对照物逐块看，不要整份 `git apply`：它基于 DSv4.1 那次的基线）：追新基线时拿它当重放起点和平台契约对照物，
 这三类不必再从 fork 历史重新翻一遍。
-只取本轮 pick 集里有的类：A1、A5 默认不迁，用户没点名时这份 diff 里的 A1/A5 部分不重放，它们带进
-契约的网关路由、探针等条目在验证点 1 挪进 `contract-excluded.tsv`，decision 写「不迁:未点名类别」。
+只取本轮 pick 集里有的类：A5 默认不迁，用户没点名时这份 diff 里的 A5 部分不重放，它带进契约的条目
+在验证点 1 挪进 `contract-excluded.tsv`，decision 写「不迁:未点名类别」。
 
 ### 2 换基线
 

@@ -7,7 +7,7 @@ signals that drive category and difficulty decisions:
 
 - fork_only: files the community base does not have (clean-pick signal)
 - conflict_hist: overlap with a previous whole-branch merge conflict list
-- cat_hint: keyword-based category suggestion (a human must confirm)
+- cat_hint: path-based category suggestion, title keywords as fallback (a human must confirm)
 - feature: delivery-feature binding, human fills (epd_mm/cache/dspark/vl_kernel/none)
 - fw_pct: framework-face share of added lines (F1 in references/pr-taxonomy.md)
 
@@ -37,11 +37,29 @@ CATEGORIES = {
     "M": "merge 提交（按 remerge-diff 看解冲突残差）",
 }
 
-# Ordered: first match wins. Hints only; a human confirms every card.
-TITLE_HINTS: list[tuple[str, str]] = [
+# Title rules that win over paths: community picks, reverts, branch-sync noise.
+TITLE_FIRST: list[tuple[str, str]] = [
     (r"Cherry-pick to release|\(#\d{4,}\)$", "C1"),
     (r"^Revert ", "X"),
     (r"Pick .* code|merge .* into", "X"),
+    (r"监控|指标|metric|log schema|pyspy|prometheus", "A2"),
+]
+
+# Path rules vote by added lines; most lines wins, earlier rule on ties. C2 only for pure test/CI commits.
+PATH_HINTS: list[tuple[str, str]] = [
+    (r"^(test|\.github|docker|scripts/ci)/|Dockerfile|run_ci|ci_tests", "C2"),
+    (r"/models/|dsv4|deepseek_v4|kimi|glm|minimax|qwen", "B1"),
+    (r"/observability/|/metrics/|metrics_collector|scheduler_metrics|tracing", "A2"),
+    (r"/mem_cache/|asradix|attention_?store|hicache", "A3"),
+    (
+        r"/entrypoints/|serving_|tokenizer_manager|detokenizer|multi_tokenizer"
+        r"|/disaggregation/|/multimodal/|encode_server",
+        "A1",
+    ),
+]
+
+# Fallback when no path rule matches. Hints only; a human confirms every card.
+TITLE_HINTS: list[tuple[str, str]] = [
     (r"单测|run_ci|ci_tests|Dockerfile|镜像|mirror dep|base image", "C2"),
     (r"监控|指标|metric|日志|log schema|trace|pyspy|prometheus", "A2"),
     (r"asradix|attention ?store|radix|cache", "A3"),
@@ -70,14 +88,14 @@ HOT_PATHS = (
     "entrypoints/openai/serving",
 )
 
-# Default migration scope: monitoring (A2) + multimodal. Everything else needs an
-# explicit user request. C1/X/C2 never count (dropped / noise / handled by the image card).
+# Default migration scope: link (A1), monitoring (A2), multimodal, CI (C2). Everything else
+# needs an explicit user request. C1/X/M never count (dropped / noise / merge residue).
 MM_RE = re.compile(
     r"multimodal|多模态|\bEPD\b|encode[_ -]?(server|stage)|\bvit\b|\bvlm?\b"
     r"|video|视频|image|图片|mm_|processor|embedding",
     re.IGNORECASE,
 )
-NEVER_IN_SCOPE = {"C1", "C2", "X", "M"}
+NEVER_IN_SCOPE = {"C1", "X", "M"}
 
 # F1 face split: model face = model files or paths named after a model.
 MODEL_PATH_RE = re.compile(
@@ -87,6 +105,7 @@ FRAMEWORK_ROOT_RE = re.compile(r"^python/sglang/(srt|kernels|jit_kernel)/")
 
 
 def run_git(repo: str, *args: str) -> str:
+    """Run a git command in repo and return stdout."""
     proc = subprocess.run(
         ["git", "-C", repo, *args], capture_output=True, text=True, check=True
     )
@@ -94,23 +113,51 @@ def run_git(repo: str, *args: str) -> str:
 
 
 def hint(patterns: list[tuple[str, str]], title: str, default: str) -> str:
+    """Return the tag of the first pattern matching title, else default."""
     for pattern, tag in patterns:
         if re.search(pattern, title, re.IGNORECASE):
             return tag
     return default
 
 
+def path_hint(file_adds: list[tuple[str, int]]) -> str:
+    """Return the category whose path rule covers the most added lines, or ''."""
+    votes: collections.Counter[str] = collections.Counter()
+    unmatched = 0
+    for path, n_add in file_adds:
+        for pattern, tag in PATH_HINTS:
+            if re.search(pattern, path, re.IGNORECASE):
+                votes[tag] += max(n_add, 1)
+                break
+        else:
+            unmatched += 1
+    if len(votes) > 1 or unmatched:
+        votes.pop("C2", None)  # tests shipped with a code change follow that change
+    if not votes:
+        return ""
+    order = [tag for _, tag in PATH_HINTS]
+    return max(votes, key=lambda tag: (votes[tag], -order.index(tag)))
+
+
 def default_scope(cat: str, title: str, files: list[str]) -> str:
+    """Pre-label the default migration scope: link / monitor / multimodal / ci / framework / out."""
     if cat in NEVER_IN_SCOPE:
         return "out"
     if cat == "A2":
         return "monitor"
-    return "multimodal" if MM_RE.search(title + " " + " ".join(files)) else "out"
+    if cat == "C2":
+        return "ci"
+    if MM_RE.search(title + " " + " ".join(files)):
+        return "multimodal"
+    if cat == "A1":
+        return "link"
+    return "framework" if cat == "A4" else "out"
 
 
 def difficulty(
     lines: int, fork_only: int, n_files: int, conflict: int, hot: bool
 ) -> str:
+    """Grade replay difficulty from size, fork-only files and conflict history."""
     if conflict > 5 or hot:
         return "难"
     score = (1 if conflict > 0 else 0) + (1 if lines > 3000 else 0)
@@ -121,6 +168,7 @@ def difficulty(
 
 
 def main() -> None:
+    """Write inventory.tsv and cards_summary.md for the fork commits."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--repo", required=True)
     ap.add_argument("--fork", required=True, help="frozen fork tip SHA")
@@ -163,6 +211,7 @@ def main() -> None:
         m = card_re.search(title)
         card = m.group(0) if m else "NO-CARD"
         files: list[str] = []
+        file_adds: list[tuple[str, int]] = []
         add = dele = fw_add = model_add = 0
         # merge 提交只看解冲突带进来的改动（git >= 2.36 的 remerge-diff）
         show_args = ["--remerge-diff"] if is_merge else []
@@ -174,6 +223,7 @@ def main() -> None:
             files.append(parts[2])
             n_add = 0 if parts[0] == "-" else int(parts[0])
             add += n_add
+            file_adds.append((parts[2], n_add))
             dele += 0 if parts[1] == "-" else int(parts[1])
             if MODEL_PATH_RE.search(parts[2]):
                 model_add += n_add
@@ -182,14 +232,14 @@ def main() -> None:
         face_total = fw_add + model_add
         fork_only = sum(1 for f in files if f not in base_files)
         conflict = sum(1 for f in files if f in conflict_paths)
-        cat = hint(TITLE_HINTS, title, "A1")
+        cat = hint(TITLE_FIRST, title, "") or path_hint(file_adds) or hint(TITLE_HINTS, title, "A4")
         if any(prefix in title for prefix in reverted):
             cat = "X"  # revert 候选；净差为零才算成对互消，见 SKILL.md 第 3 步
         if is_merge:
             cat = "M"
         model = hint(MODEL_HINTS, title + " " + " ".join(files), "generic")
-        if cat == "B1" and re.search(r"fix|修复|bug", title, re.IGNORECASE):
-            cat = "B2"
+        if re.search(r"fix|修复|bug", title, re.IGNORECASE):
+            cat = {"B1": "B2", "A4": "A5"}.get(cat, cat)
         hot = any(h in f for f in files for h in HOT_PATHS)
         lines = add + dele
         rows.append({
@@ -232,7 +282,8 @@ def main() -> None:
     (out_dir / "cards_summary.md").write_text("\n".join(md) + "\n")
     print(f"{len(rows)} commits, {len(cards)} cards -> {tsv}")
     in_scope = [r for r in rows if r["scope_hint"] != "out"]
-    print(f"scope_hint (默认只迁监控+多模态): {len(in_scope)}/{len(rows)} commits")
+    label = "默认迁链路+监控+多模态+CI，framework 待 F4 判受益面"
+    print(f"scope_hint ({label}): {len(in_scope)}/{len(rows)} commits")
     print("cat/feature 列为空，人工确认 cat_hint 后填入；混合卡逐提交定类，特性绑定块打 feature 标签。")
 
 

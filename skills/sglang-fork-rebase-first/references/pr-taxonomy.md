@@ -42,7 +42,7 @@ disaggregation/encoder/ 全套框架（server/receiver/preprocessor/健康检查
 **问题 4：剩下的按子系统归 A 类或工程类。**
 
 下表的「迁移语义」描述的是类别本身迁不迁的倾向，本轮实际迁哪些以 SKILL.md 硬规则 3 为准：
-默认只迁 A2 和多模态，其余类别用户点名才迁。写「必迁」的类别没被点名时，照样记
+默认迁 A1、A2、多模态和 C2，A4 里 F4 判为全模型受益的也默认迁，其余类别用户点名才迁。写「必迁」的类别没被点名时，照样记
 「不迁:未点名类别」，并在 evidence 里标出线上缺陷修复这类值得建议用户补点名的提交。
 
 | 类别 | 覆盖 | 迁移语义 |
@@ -50,7 +50,7 @@ disaggregation/encoder/ 全套框架（server/receiver/preprocessor/健康检查
 | A1 链路适配 | 无条件核心：接口协议、tokenize 端点、PD 传输、PP 组合；特性绑定：EPD/encode 多模态栈 | 核心必迁；EPD 栈按特性走且先和社区同类实现 diff |
 | A2 监控适配 | metrics、统一日志 schema、Trace/content_detection、pyspy | 必迁，量小 |
 | A3 Cache 适配 | AttentionStore/asradix、KV 复用、mm_cache 边界 | 可选：交付不开 cache 整类跳过 + 发版 YAML 去开关 |
-| A4 通用模型优化 | DCP 传输、fp8 KV、TokenSpeed MLA、DSpark 投机框架层、CP / MegaMoE 框架层 | 不整类必迁：逐提交过下文「框架层提交的吸收判据」F1–F6 |
+| A4 通用模型优化 | DCP 传输、fp8 KV、TokenSpeed MLA、DSpark 投机框架层、CP / MegaMoE 框架层 | 逐提交过下文 F1–F6；F4 判为全模型受益的默认迁，其余看交付模型 |
 | A5 通用 BUGFIX | FC keepalive、tokenizer/stream、PP 同步、kernel 寻址溢出 | 必迁，单条量小 |
 | C2 工程/CI | ci.yml、Dockerfile、单测流水、镜像依赖 | 跟发版方式走，多为独立文件 |
 | X 噪声 | 成对 revert、历史搬运提交、merge 残留 | 出清单 |
@@ -58,8 +58,11 @@ disaggregation/encoder/ 全套框架（server/receiver/preprocessor/健康检查
 边界判例（实测中最常犹豫的三种）：
 
 - DSpark/DCP/CP/MegaMoE 这类「因某模型引入、改在框架文件里」的层：先按 F1 拆面，
-  框架面按 F4 数新基线上的受益模型。受益 ≥2 个模型才算框架通用，按 A4 走特性开关；
+  框架面按 F4 分三档：全模型受益的默认迁入；部分模型受益的看交付模型在不在受益名单里；
   只有一个受益模型的是挂在框架文件里的模型钩子，随该模型按 B1 处置。
+  放在通用文件里不等于全模型受益：DSv4.1 `207a80780e`（CP 下支持 vision）改的是
+  `eager_runner.py`，但只在模型有 `_prepare_mm_embeddings` 时生效，主线只有
+  `models/deepseek_v4.py` 定义它，所以是单模型。
 - 用户点名 A4 时列了子项（如「CP、DCP、MegaMoE、框架调度」），范围按用户列的算，不按上表
   A4 的「覆盖」列扩大：DSpark 投机没被点名就整块「不迁:未点名类别 DSpark」，标题带 DCP 但改动
   全在 `speculative/dspark_components/*` 的也一样（F1 先归特性块）。
@@ -77,7 +80,10 @@ disaggregation/encoder/ 全套框架（server/receiver/preprocessor/健康检查
 
 ## 框架层提交的吸收判据（CP / MegaMoE / 通用模型支持）
 
-用户点名要吸收框架层改动（CP、DCP、MegaMoE、量化 GEMM 路由、调度与显存策略等）时用。
+每轮都要跑：fork 里所有 A4 候选（`scope_hint=framework`）以及用户点名的框架层改动（CP、DCP、
+MegaMoE、量化 GEMM 路由、调度与显存策略等）都逐笔过一遍。核心问题是 F4：**是不是所有模型
+都受益**。全模型受益的默认迁入；只有部分模型受益的，交付模型在受益名单里才迁；只有一个模型
+受益的随该模型走。
 shadow 分支没有单独的「框架」类，这类改动散在 [性能优化]、[模型适配]、[BUGFIX]、[其他]
 的 squash 里。**判定单位是源提交**：按 squash 正文「来源提交」回到原 SHA 逐笔判，不按
 squash、不按卡。先复核类别：[性能优化] 里混着监控（DSv4.1 的 luno-3716/4170 三笔）和
@@ -120,9 +126,22 @@ rg -l '<新符号或开关名>' python/sglang/srt/models | wc -l     # 直接消
 rg -l '<新符号或开关名>' python/sglang/srt -g '!models/**'    # 是否有模型无关入口
 ```
 
-受益 ≥ 2 个模型，或入口模型无关（scheduler、runner、量化层通用路径）→ 框架通用，A4。
-只受益 1 个模型 → 挂在框架文件里的模型钩子，随该模型按 B1。注册表、`getattr` 动态分派
-rg 数不到，要人工看分派点。例：`kernels/ops/layernorm/mhc.py` 在主线被 deepseek_v4*、
+按受益面分三档，档位写进 evidence（`F4 全模型` / `F4 部分:<模型列表>` / `F4 单模型:<模型>`）：
+
+| 档位 | 判定 | 去向 |
+|---|---|---|
+| 全模型 | 入口与模型无关，任何模型走到这条路径都生效：scheduler、tokenizer/detokenizer、PD 传输、runner 通用分支、通用量化与 MoE 路径（`fp8_utils.py`、`mega_moe.py` 本体）；代码里没有按模型名、`model_type`、模型专属方法分岔 | 默认迁入，不需要用户点名；继续过 F5、F6 |
+| 部分模型 | 新符号被 ≥ 2 个模型消费，或通用文件里的分支只在模型具备某个能力时生效（有 vision、走 MLA、用 hash MoE） | 交付模型在受益名单里才迁，否则「不迁:F4 交付模型不受益」 |
+| 单模型 | 只有 1 个模型消费，或分岔条件只有 1 个模型满足 | 随该模型按 B1 |
+
+判全模型时要看生效条件，不只看文件路径：通用文件里 `getattr(model, "<方法>")`、
+`hasattr(model, ...)`、`model_type ==` 这类守卫，要 rg 主线有几个模型满足，满足的模型数决定档位。
+注册表、`getattr` 动态分派 rg 数不到，要人工看分派点。
+例：`207a80780e`（CP 下支持 vision）改在 `eager_runner.py`，守卫是
+`hasattr(model, "_prepare_mm_embeddings")`，主线只有 `models/deepseek_v4.py` 定义 → 单模型。
+`583c5aac5b` 里的 W4A4 MegaMoE group-size fallback 改在 `mega_moe.py` 通用路径，任何
+`moe_intermediate_size` 不是 512 倍数的 W4A4 模型都用得上 → 全模型。
+`kernels/ops/layernorm/mhc.py` 在主线被 deepseek_v4*、
 glm5_next、xing4_0 消费，通用。luno-5437 `2099e8a901` 加了 6 个开关，要逐个数：
 `SGLANG_FUSE_CP_LAST_TOKEN_GATHER` 只在 `eager_runner.py` / `logits_processor.py` 消费，
 走的是通用 `InterleaveCPStrategy`，入口模型无关，算框架通用；另外 5 个
@@ -131,9 +150,15 @@ glm5_next、xing4_0 消费，通用。luno-5437 `2099e8a901` 加了 6 个开关�
 `mega_moe.py` 本体在主线被 deepseek_v2/v4、kimi_k3、minimax_m3、
 qwen2_moe/qwen3_moe 等消费，属于通用；fork 在里面加的 hash 层与 VL 分支拆到模型面。
 
-**F5 默认行为与证据。** 改了默认路径（没有开关，或开关默认开）会影响所有模型，必须有
-NEW_BASE 上同 shape、同 checkpoint 的性能和精度实测才吸收，旧基线的收益不算数；没有实测 →
-暂缓。默认关闭的开关 → 交付发版 YAML 打开才迁，不开就暂缓，迁了也是死代码。
+**F5 默认行为与证据。** 只决定怎么迁，不推翻 F4 的全模型结论：
+
+- 默认关闭的开关：全模型档直接吸收，开关保持默认关，交付 YAML 想开再开；部分模型档仍按
+  交付 YAML 是否打开决定，不开就「暂缓:F5 开关默认关」。
+- 改了默认路径（开关默认开）：必须有 NEW_BASE 上同 shape、同 checkpoint 的性能和精度实测，
+  旧基线的收益不算数。有实测按原默认值吸收；没有实测也吸收，但把默认值改成关，evidence 写
+  「F5 默认值改关，待实测」。
+- 改了默认路径且没有开关：没有实测就暂缓，补迁条件写「补齐 NEW_BASE 实测」。
+
 例：`576b74befa` 的 `SGLANG_MHC_USE_DEEPGEMM` 默认 `"1"`，属于改默认路径；`b029ecea99` 的
 `SGLANG_OPT_BLOCK_FP8_MXFP8_DEEPGEMM` 默认 `False`。
 
@@ -169,10 +194,16 @@ DSv4.1 flash `[性能优化]`（37 笔来源）的实测判例：
 | 源提交 | 内容 | fw% | 命中 | 结论 |
 |---|---|---:|---|---|
 | `fca9e8f887` luno-5318 | megamhc / megagate | 69 | F2 主线已有 | 已收录；私改与 DSv4 分支拆出 |
-| `576b74befa` luno-5222 | mhc 走 DeepGEMM | 100 | F4 通用；F5 改默认路径 | 有新基线实测才吸收，否则暂缓 |
-| `b029ecea99` luno-5354 | block-fp8 dense GEMM 走 DeepGEMM | 100 | F4 通用；F5 默认关；F6 热 | 交付开开关则吸收并重实现，否则暂缓 |
+| `583c5aac5b` luno-5232 | W4A4 MegaMoE down-GEMM group-size fallback | 90 | F2 主线 `check_mega_moe_shapes` 仍要求 `mxf4xmxf4` 下 intermediate %512；F4 全模型 | 吸收 |
+| `b029ecea99` luno-5354 | block-fp8 dense GEMM 走 DeepGEMM | 100 | F4 全模型；F5 默认关；F6 热 | 吸收，开关保持默认关，按 L2/L9 重实现 |
+| `c833093f7c` 等 luno-5274 | PD prefill forward 线程化 | 100 | F4 全模型；F5 默认关；F6 热（`prefill.py`、`scheduler.py`） | 吸收，重实现 |
+| `77b5614d96` luno-5633 | 连续准入与成本调度 | 100 | F3 新子系统；F4 全模型；F5 默认关 | 吸收，3 个新文件整块重放 |
+| `d46eb2dae5` `7c4d77e2a9` | 投机 + xgrammar host 开销 | 100 | F4 全模型；F5 开关默认开 | 吸收；无实测时默认值改关 |
+| `14b3e4d1c9` | MoE 路由权重 fp32 + all-reduce 融合 finalize | 100 | F4 全模型；F5 改默认路径且无开关 | 暂缓，补齐 NEW_BASE 实测再迁 |
+| `2099e8a901` luno-5437 | prefill-CP / 尾层融合 | 34 | F1 模型主导；last-token gather 走通用 `InterleaveCPStrategy`，F4 全模型、F5 默认关 | gather 开关吸收；5 个 DSv4 开关随模型 |
+| `576b74befa` luno-5222 | mhc 走 DeepGEMM | 100 | F4 部分:deepseek_v4*/glm5_next/xing4_0；F5 开关默认开 | 交付是其中之一才吸收，无实测时默认值改关 |
+| `207a80780e` luno-5211 | CP 下支持 vision | 84 | F4 单模型：守卫 `_prepare_mm_embeddings` 只有 deepseek_v4 定义 | 随模型 |
 | `0845fd13f6` luno-5297 | 显存优化 | 59 | F1 混合；框架面 4 个热文件 | 拆面；框架面逐 hunk 过 F4–F6，DSpark 部分按特性 |
-| `2099e8a901` luno-5437 | prefill-CP / 尾层融合 | 34 | F1 模型主导；runner 的 last-token gather 过 F4、F5 默认关 | 5 个 DSv4 开关随模型；gather 开关暂缓，交付打开再吸收 |
 | DSv4 CP KV 存储 | `kernels/ops/attention/dsv4/cp_kv_store.py` | — | F1 路径带模型名 | 随模型 |
 | `459ff8222e` luno-5298 | PD prefill 轮询合并 | 100 | F6 社区单测失败 | 不迁 |
 
