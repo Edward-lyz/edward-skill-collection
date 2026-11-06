@@ -1,4 +1,4 @@
-# 交付镜像四件套
+# 交付镜像构建文件
 
 厂内 aiak_sglang 的镜像入口固定四个文件。`docker/` 保持社区原样，模型专属资产才开
 `docker/<model>/` 子目录（K3 的 DeepEP patch 与 cu12/cu13 Dockerfile 放在那）。
@@ -11,11 +11,11 @@
 | `dockerfile/gpu_requirements.env` | wheel 清单，被 Dockerfile COPY 进镜像做 `pip install -r` |
 
 build.sh 决定了 docker build context 是仓库的**父目录**，所以 Dockerfile 里每个 COPY 都
-写 `aiak_sglang/...`。四件套的路径、ci.yml 与 build.sh 的内容都跟着流水线，不要改。
+写 `aiak_sglang/...`。镜像构建文件的路径、ci.yml 与 build.sh 的内容都跟着流水线，不要改。
 
 ci.yml 缺了的表现是流水线一开工就停：`[ERROR]can not get ci.yml from iCode`。社区树里
-没有这个文件，所以基线直换之后它一定缺，而且**每个 change 的 CI 各自 checkout 自己那条
-ref**，栈里排在 ci.yml 之后的卡才继承得到。把四件套那一卡放在栈底，16 张卡的 CI 一次
+没有这个文件，所以换基线之后它一定缺，而且**每个 change 的 CI 各自 checkout 自己那条
+ref**，栈里排在 ci.yml 之后的卡才继承得到。把镜像构建文件那一卡放在最底下一笔，16 张卡的 CI 一次
 都能找到它。
 
 ## 取模板
@@ -62,7 +62,7 @@ K3 = aiak-inference base 那条线的模板，GLM = 社区镜像 base 那条线�
 | mooncake transfer engine wheel | K3 单独 RUN / GLM 放在 env 文件里 | 运行时通用 + 版本锚 | 留，取 cuda13 变体（PD 分离的传输后端） |
 | deep_ep / deep_gemm / flash_mla 覆盖安装 | GLM | base 专属 | 删。社区 dev 镜像自带本版本 kernel，覆盖等于降级 |
 | `jsonschema_rs` / `distro` / `decord` / `PyNvVideoCodec` | K3（注释写明「本该在 base 里」） | 运行时通用 | 留。社区 base 确实没有这几个 |
-| flashinfer trtllm-gen MoE warmup | K3 | 运行时通用 | 留，自带 `|| echo` 兜底 |
+| flashinfer trtllm-gen MoE warmup | K3 | 运行时通用 | 留，自带 `|| echo` 容错 |
 | editable 安装 + `SETUPTOOLS_SCM_PRETEND_VERSION` | 两条线 | 版本锚 | 版本改成构建时读 `importlib.metadata.version("sglang")`；它看 site-packages 的 dist-info，`rm -rf` 源码目录之后照样读得到 |
 | `msit_llm` + `onnx --no-deps` | 两条线 | 运行时通用 | 留，精度排查工具 |
 | `WORKDIR /sgl-workspace/sglang` | 两条线 | 运行时通用 | 留 |
@@ -70,10 +70,10 @@ K3 = aiak-inference base 那条线的模板，GLM = 社区镜像 base 那条线�
 两条额外约束：`pip install -e --no-build-isolation` 要求 base 里已有 setuptools_scm，换社区
 base 时先确认；apt 代理那段 heredoc 用的是 BuildKit 1.4+ 语法，厂内流水线在跑，照抄即可。
 
-## DSv4.1 实账
+## DSv4.1 实测记录
 
 自创的 `dockerfile/Dockerfile.dsv41` + `dockerfile/build_dsv41.sh`（48 行，镜像内现编
-wheel）整卡被打回；改成四件套后是 110 行，其中 `ci.yml` 与 `build/build.sh` 与模板同 blob。
+wheel）整卡被打回；改成只放镜像构建文件后是 110 行，其中 `ci.yml` 与 `build/build.sh` 与模板同 blob。
 第一版漏了 ci.yml，流水线 `can not get ci.yml from iCode` 才暴露，补的时候顺手把这一卡挪
-到栈底——那次 16 张卡全部换 SHA、一次 push 回执 `updated: 16`，Change-Id 集合不变、没有
+到最底下一笔——那次 16 张卡全部换 SHA、一次 push 回执 `updated: 16`，Change-Id 集合不变、没有
 多开 change。

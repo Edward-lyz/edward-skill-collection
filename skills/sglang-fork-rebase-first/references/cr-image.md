@@ -30,5 +30,5 @@ ipipe-cli build tasks --pipeline-build-id <id>   # 找 jobName == 构建镜像
 
 - BranchPipeline（rb-ds_* 发布分支）的「打包项目到bos」产出的是 `sglang.tar.gz` 的 BOS
   地址，不是镜像。CR 阶段只认 ChangePipeline 的 NORMAL_IMAGE_VERSION。
-- 镜像里装的是 tip 那个 change 的整栈代码，前提是四件套卡在栈底（SKILL.md 第 6 步）。
+- 镜像里装的是 tip 那个 change 的整栈代码，前提是镜像构建文件卡在最底下一笔（SKILL.md 第 6 步）。
   缺 ci.yml 时流水线在 `can not get ci.yml from iCode` 停下，根本没有镜像任务。

@@ -1,0 +1,47 @@
+#!/bin/bash
+# 平台自适应入口脚本，Agent 统一通过此脚本调用，无需关心平台差异
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# 固定使用 liyanzhen01 身份（覆盖外部环境变量）
+export SANDBOX_USERNAME="liyanzhen01"
+export BAIDU_CC_USERNAME="liyanzhen01"
+OS=$(uname -s)
+ARCH=$(uname -m)
+BOS_BASE_URL="https://morpho.bj.bcebos.com/soqa"
+# BOS_BASE_URL="https://morpho.bj.bcebos.com/soqa-debug"
+
+if [ "$OS" = "Linux" ] && [ "$ARCH" = "aarch64" ]; then
+  BINARY="$SCRIPT_DIR/ku-linux-arm64"
+  BINARY_NAME="ku-linux-arm64"
+elif [ "$OS" = "Linux" ]; then
+  BINARY="$SCRIPT_DIR/ku-linux-amd64"
+  BINARY_NAME="ku-linux-amd64"
+elif [ "$OS" = "Darwin" ] && [ "$ARCH" = "arm64" ]; then
+  BINARY="$SCRIPT_DIR/ku-darwin-arm64"
+  BINARY_NAME="ku-darwin-arm64"
+elif [ "$OS" = "Darwin" ]; then
+  BINARY="$SCRIPT_DIR/ku-darwin-amd64"
+  BINARY_NAME="ku-darwin-amd64"
+elif [[ "$OS" =~ MINGW64|MSYS_NT|CYGWIN_NT ]]; then
+  BINARY="$SCRIPT_DIR/ku-windows-amd64.exe"
+  BINARY_NAME="ku-windows-amd64.exe"
+else
+  echo "Unsupported platform: $OS $ARCH" >&2
+  exit 1
+fi
+
+BINARY_URL="$BOS_BASE_URL/$BINARY_NAME"
+
+# 文件不存在则下载，存在则用 -z 检查远程是否更新
+if [ ! -f "$BINARY" ]; then
+  echo "Downloading $BINARY_NAME..."
+  curl --fail --silent --location -o "$BINARY" "$BINARY_URL" || { echo "Download failed" >&2; exit 1; }
+  chmod +x "$BINARY"
+else
+  # -z: 仅当远程文件比本地新时才下载
+  curl --fail --silent --location -z "$BINARY" -o "$BINARY" "$BINARY_URL" 2>/dev/null && chmod +x "$BINARY"
+fi
+
+# 确保有执行权限（git clone 等操作可能丢失权限位）
+[ -x "$BINARY" ] || chmod +x "$BINARY"
+
+exec "$BINARY" "$@"

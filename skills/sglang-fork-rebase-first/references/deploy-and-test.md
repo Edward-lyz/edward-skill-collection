@@ -1,12 +1,12 @@
 # 部署与测试（外部阶段）
 
-来源：DSv4.1 flash 基线直换（2026-10，分支 ds-dev-rebase-loop-1013，E1P1D1-TP8-EPD，B200）一轮实跑。
+来源：DSv4.1 flash 换基线（2026-10，分支 ds-dev-rebase-loop-1013，E1P1D1-TP8-EPD，B200）一轮实跑。
 静态契约全绿之后，运行期还抓出 4 个缺陷；下表列出每个缺陷哪一道门本该拦住它，后面的步骤就是按这张
 表排的。
 
 | 缺陷 | 症状 | 静态契约为什么没拦住 | 现在由谁拦 |
 |---|---|---|---|
-| BASE_IMAGE 版本锚落后 | 服务一启动就退出：`sglang-kernel 0.4.6.post1 is less than the minimum required version 0.4.9`；整轮 CR 镜像白建 | 硬规则 13 只确认「地址是它」，不看里面装了什么 | `check_base_image_pins.py`，提交 CR 前 |
+| BASE_IMAGE 版本锚落后 | 服务一启动就退出：`sglang-kernel 0.4.6.post1 is less than the minimum required version 0.4.9`；整轮 CR 镜像都要重建 | 硬规则 13 只确认「地址是它」，不看里面装了什么 | `check_base_image_pins.py`，提交 CR 前 |
 | 搬来的代码引用社区已重构的符号 | E 角色 health 检查报 `cannot import name 'decode_image'`（社区把它重构成 `patchify_image`） | `from X import 不存在的名字` 不是 F821，契约脚本只看「能力在不在」 | 步骤 9.1 的 import 冒烟 |
 | 组件类里读了 Scheduler 才有的字段 | 非 PD 部署的 Prefill 读 `self.server_args.enable_metrics`，调度器退出 | PD 路径不经过这行；同 SKILL 常见坑最后一条，这一轮在另一处复发 | 步骤 7 的集中式起服务或静态检查，对每张监控卡都做 |
 | 社区改了行为，厂内测试用例随之失败 | 功能回归多出 9 个失败：社区把 V4.1 工具调用约束换成 xgrammar 内置 XML 约束，`tool_choice=required` 时非标识符参数名被改写 | 行为变化不改代码结构，契约和残差都看不到 | 步骤 9.3 的功能回归，逐用例对上一发版差分 |
@@ -26,7 +26,7 @@
 
 ### 9.1.1 社区单测是第四道门
 
-第二轮（基线直换到 1017 main）起，起服务之后、跑 ipipe 之前，把候选 tip 的改动文件拷进已部署的 P/D pod，
+第二轮（换基线到 1017 main）起，起服务之后、跑 ipipe 之前，把候选 tip 的改动文件拷进已部署的 P/D pod，
 用 `scripts/run_unit_files.sh` 逐文件跑 `observability entrypoints function_call managers disaggregation parser`
 的 CPU 单测。整目录跑会被第一个收集错误或挂起的文件拖住，所以脚本是一文件一进程加超时。结果落在
 容器重启也不丢的卷上（`/shared`），因为启动探针一直失败的 pod 约每 50 分钟重启一次，`/tmp` 随之清空。
@@ -39,7 +39,7 @@
   （`test_multi_tokenizer_mixin.py` 已补用例）。以后给 `Batch*Output` 加字段，先问它是批级还是逐请求。
 - **测试桩与新代码不匹配**：厂内加的 `self.metrics_reporter.enable_metrics`、`iter_start_time`、
   `_build_metrics_labels` 等读取，让社区用 `SimpleNamespace` / `__new__` 搭的桩缺属性。逐个补桩，不要给产品代码
-  加 `getattr` 兜底；真实 Scheduler 在 `__init__` 里都有这些属性。
+  加 `getattr` 默认值；真实 Scheduler 在 `__init__` 里都有这些属性。
 
 另有一类要判断是不是「该改测试」还是「该改代码」：厂内行为刻意偏离社区时（例如 luno-4784 把中止计数从发起时
 挪到生效时），改测试并在注释里写明；社区测试钉住的是社区想要的行为时（例如事件循环里的轮询顺序），厂内改动
@@ -59,7 +59,7 @@
 
 ## 9.3 测试顺序与判读
 
-触发全部走 `ipipe-run-pipeline` skill。集群环境经 AS（填 model_id）；开发机直连的环境不经 AS，用 `inference_host`
+触发全部用 `python3 "$SKILL_DIR/scripts/ipipe_run.py"`（list / plan / run / result，步骤见 references/ipipe-pipelines.md）。集群环境经 AS（填 model_id）；开发机直连的环境不经 AS，用 `inference_host`
 指向 router。默认顺序（用户指定）：
 
 1. 精度 OpenCompass（think / nothink）。
@@ -68,12 +68,12 @@
 3. 功能回归（think / nothink 各一次）。逐用例对上一发版差分，新增失败逐个定性（代码缺陷 / 用例本身波动 /
    环境），不要只看失败总数。这一轮 4 个缺陷里只有它抓到了行为变化；如果环境紧、预计要多轮重部署，把它提前到
    第一位，因为它最便宜、最先暴露问题。
-4. 长稳：`stress` 场景，默认值见 ipipe-run-pipeline 的「Stress (长稳) defaults」：12 h，数据集取最近 10 次
+4. 长稳：`stress` 场景，默认值见 references/ipipe-pipelines.md 的「Stress (长稳) defaults」：12 h，数据集取最近 10 次
    执行里出现最多的，发压 pod 为 Prefill pod。占用环境 12 h，触发前要用户确认并给 qps。
 
 判读规则：阶段状态不是结论，平台判「不达标」的原样写进报告（这一轮 OpenCompass think 的 SuperGPQA 71 对基线
 77）；每个结果写明用的是哪个镜像 tag，修复后没有重跑的项标「推断，未实测」；pipeline 日志按
-ipipe-run-pipeline 的方法取，不要用 `result` 下载 GB 级日志。
+references/ipipe-pipelines.md 的方法取（`ipipe-cli build job --job-build-id` 拿 compare job 日志只读尾部），不要用 `result` 下载 GB 级日志。
 
 ## 9.4 经验补充（1017 轮）
 

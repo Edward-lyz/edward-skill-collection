@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# 交付镜像四件套的格式自查，在仓库里跑：
+# 交付镜像构建文件的格式自查，在仓库里跑：
 #   check_image_layout.sh <交付 rev> <新基线 rev> <模板分支 rev>
-# 查五件事：四件套在位与 mode、ci.yml 与 build.sh 与模板同 blob、相对新基线只动镜像
+# 查五件事：镜像构建文件在位与 mode、ci.yml 与 build.sh 与模板同 blob、相对新基线只动镜像
 # 文件、没有自创文件名、Dockerfile 的 COPY 源都在 aiak_sglang/ 下（context 是父目录）。
 set -uo pipefail
 
@@ -53,5 +53,5 @@ if dockerfile=$(git show "$REV:dockerfile/Dockerfile" 2>/dev/null); then
     [ -z "$bad_copy" ] || fail "COPY 源不在 aiak_sglang/ 下：$bad_copy"
     printf 'base %s\n' "$(printf '%s\n' "$dockerfile" | sed -n '1p')"
 fi
-[ $rc -eq 0 ] && printf 'OK   四件套格式通过\n'
+[ $rc -eq 0 ] && printf 'OK   镜像构建文件格式通过\n'
 exit $rc

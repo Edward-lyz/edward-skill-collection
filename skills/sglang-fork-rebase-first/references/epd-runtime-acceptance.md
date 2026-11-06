@@ -7,7 +7,7 @@
 
 三个角色都要起：encode server（`--disaggregation-mode encode` 那侧）、prefill、decode。启动参数
 两项必给，缺了后面全是空的：`--enable-metrics`（缺了不挂 `/metrics`，两侧 collector 都不建）、
-`--enable-cache-report`（cache 命中类指标的开关）。发版 YAML 的平台标签四件套按
+`--enable-cache-report`（cache 命中类指标的开关）。发版 YAML 的四个平台标签按
 references/monitoring-contract.md 填平台注册过的服务名，别自创。
 
 两个环境变量按需打开，它们默认关：`SGLANG_LOG_REQUEST_TRACE=1` 出 rid 的 stage trace，

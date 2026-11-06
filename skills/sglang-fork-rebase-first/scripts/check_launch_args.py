@@ -7,7 +7,11 @@
     python3 check_launch_args.py --repo <worktree> --yaml 1prefill.yaml --yaml 1decode.yaml
 
 可识别参数全集 = arg_groups/fields/*.py 各 dataclass 的字段名（下划线转横线）
+              ∪ Arg(aliases=[...]) 里的别名
               ∪ 全仓库 add_argument("--x") 的字面量。
+--yaml 也接受 .sh 启动脚本：只扫非注释行，脚本自己的选项（如 --bench-mode）用 --allow 放行。
+全集外的参数在 argparse 下不一定报错：它是唯一前缀时会被缩写匹配，是多个参数的前缀时报
+ambiguous option（例：--cuda-graph-max-bs 同时是 -decode / -prefill 的前缀），两种都按不认处理。
 退出码 0 表示零可疑项。
 """
 
@@ -22,6 +26,7 @@ from pathlib import Path
 
 ARG_RE = re.compile(r"(?<![\w-])(--[a-z0-9][a-z0-9-]*)")
 ADD_ARGUMENT_RE = re.compile(r"""add_argument\(\s*["'](--[a-z0-9][a-z0-9-]*)["']""")
+ALIASES_RE = re.compile(r"""aliases\s*=\s*\[([^\]]*)\]""")
 
 
 def collect_valid_args(repo: Path) -> set[str]:
@@ -31,6 +36,8 @@ def collect_valid_args(repo: Path) -> set[str]:
     fields_dir = repo / "python/sglang/srt/arg_groups/fields"
     for path in sorted(fields_dir.glob("*.py")) if fields_dir.is_dir() else []:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
+        for group in ALIASES_RE.findall(path.read_text(encoding="utf-8", errors="ignore")):
+            valid.update(ARG_RE.findall(group))
         for node in ast.walk(tree):
             if not isinstance(node, ast.ClassDef):
                 continue
@@ -52,7 +59,16 @@ def collect_yaml_args(path: Path) -> set[str]:
     """从 YAML 的容器 command/args 里抽出实际传的参数。
 
     只看 command 和 args 字符串，不扫整份 YAML，避免把注释和探针路径算进来。
+    .sh 启动脚本扫全部非注释行。
     """
+    if path.suffix == ".sh":
+        lines = path.read_text(encoding="utf-8").splitlines()
+        return {
+            arg
+            for line in lines
+            if not line.lstrip().startswith("#")
+            for arg in ARG_RE.findall(line)
+        }
     try:
         import yaml
     except ImportError:
@@ -108,7 +124,7 @@ def main() -> int:
     if bad_total:
         print(
             "\n处置三分：社区已删且能力默认开启 -> 删参数；厂内私有且这次需要 -> 补迁那笔提交；"
-            "厂内私有且这次不需要 -> 删参数并在台账登记能力缺失。",
+            "厂内私有且这次不需要 -> 删参数并在分类清单登记能力缺失。",
             file=sys.stderr,
         )
     return 1 if bad_total else 0

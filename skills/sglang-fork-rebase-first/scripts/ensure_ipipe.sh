@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Print the path of a working ipipe-cli; install it from the official skill package if absent.
-# The package is the ipipe-official skill zip; its SKILL.md carries the pinned CLI version
-# and installer URL, so the pin lives in one place (the official package).
+# The official package zip carries the pinned CLI version and installer URL in its SKILL.md,
+# so the pin lives in one place.
 set -euo pipefail
 
 skill_zip_url=${IPIPE_SKILL_URL:-https://mcp-proxy.baidu-int.com/api/v1/skills/download/permanent/2e14fa93-8db5-4548-831a-50f9e9fdb98c/ipipe-official.zip}

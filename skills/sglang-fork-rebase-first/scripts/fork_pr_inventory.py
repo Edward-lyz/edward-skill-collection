@@ -9,6 +9,7 @@ signals that drive category and difficulty decisions:
 - conflict_hist: overlap with a previous whole-branch merge conflict list
 - cat_hint: keyword-based category suggestion (a human must confirm)
 - feature: delivery-feature binding, human fills (epd_mm/cache/dspark/vl_kernel/none)
+- fw_pct: framework-face share of added lines (F1 in references/pr-taxonomy.md)
 
 Outputs inventory.tsv (one row per commit) and cards_summary.md.
 """
@@ -33,6 +34,7 @@ CATEGORIES = {
     "C1": "社区已收录(丢弃)",
     "C2": "工程/CI",
     "X": "成对消除/搬运残留",
+    "M": "merge 提交（按 remerge-diff 看解冲突残差）",
 }
 
 # Ordered: first match wins. Hints only; a human confirms every card.
@@ -75,7 +77,13 @@ MM_RE = re.compile(
     r"|video|视频|image|图片|mm_|processor|embedding",
     re.IGNORECASE,
 )
-NEVER_IN_SCOPE = {"C1", "C2", "X"}
+NEVER_IN_SCOPE = {"C1", "C2", "X", "M"}
+
+# F1 face split: model face = model files or paths named after a model.
+MODEL_PATH_RE = re.compile(
+    r"/models/|dsv4|deepseek_v4|kimi|glm|minimax|qwen", re.IGNORECASE
+)
+FRAMEWORK_ROOT_RE = re.compile(r"^python/sglang/(srt|kernels|jit_kernel)/")
 
 
 def run_git(repo: str, *args: str) -> str:
@@ -137,36 +145,48 @@ def main() -> None:
 
     log = run_git(
         args.repo, "log", args.fork, "^" + args.old_base,
-        "--no-merges", "--reverse", "--topo-order",
-        "--format=%H|%h|%an|%ad|%s", "--date=short",
+        "--reverse", "--topo-order",
+        "--format=%H|%h|%an|%ad|%P|%s", "--date=short", "--abbrev=10",
     )
     card_re = re.compile(args.card_pattern)
     reverted = {
         m.group(1)
         for line in log.splitlines()
-        if (m := re.search(r'Revert "(.{8,}?)"', line.split("|", 4)[4]))
+        if (m := re.search(r'Revert "(.{8,}?)"', line.split("|", 5)[5]))
     }
 
     rows: list[dict[str, object]] = []
     for line in log.splitlines():
-        full, sha, author, date, title = line.split("|", 4)
+        full, sha, author, date, parents, title = line.split("|", 5)
+        title = title.replace("\t", " ")  # TAB 会把 TSV 串列
+        is_merge = len(parents.split()) > 1
         m = card_re.search(title)
         card = m.group(0) if m else "NO-CARD"
         files: list[str] = []
-        add = dele = 0
-        numstat = run_git(args.repo, "show", "--numstat", "--format=", full)
+        add = dele = fw_add = model_add = 0
+        # merge 提交只看解冲突带进来的改动（git >= 2.36 的 remerge-diff）
+        show_args = ["--remerge-diff"] if is_merge else []
+        numstat = run_git(args.repo, "show", *show_args, "--numstat", "--format=", full)
         for stat in numstat.splitlines():
             parts = stat.split("\t")
             if len(parts) != 3:
                 continue
             files.append(parts[2])
-            add += 0 if parts[0] == "-" else int(parts[0])
+            n_add = 0 if parts[0] == "-" else int(parts[0])
+            add += n_add
             dele += 0 if parts[1] == "-" else int(parts[1])
+            if MODEL_PATH_RE.search(parts[2]):
+                model_add += n_add
+            elif FRAMEWORK_ROOT_RE.search(parts[2]):
+                fw_add += n_add
+        face_total = fw_add + model_add
         fork_only = sum(1 for f in files if f not in base_files)
         conflict = sum(1 for f in files if f in conflict_paths)
         cat = hint(TITLE_HINTS, title, "A1")
         if any(prefix in title for prefix in reverted):
-            cat = "X"  # one side of a revert pair
+            cat = "X"  # revert 候选；净差为零才算成对互消，见 SKILL.md 第 3 步
+        if is_merge:
+            cat = "M"
         model = hint(MODEL_HINTS, title + " " + " ".join(files), "generic")
         if cat == "B1" and re.search(r"fix|修复|bug", title, re.IGNORECASE):
             cat = "B2"
@@ -174,9 +194,11 @@ def main() -> None:
         lines = add + dele
         rows.append({
             "sha": sha, "date": date, "author": author, "card": card, "title": title,
+            "merge": "Y" if is_merge else "",
             "cat_hint": cat, "cat": "", "feature": "", "model": model, "files": len(files),
             "scope_hint": default_scope(cat, title, files),
             "add": add, "del": dele, "fork_only": fork_only, "conflict_hist": conflict,
+            "fw_pct": round(100 * fw_add / face_total) if face_total else "",
             "difficulty": difficulty(lines, fork_only, len(files), conflict, hot),
             "icode": args.icode_template.format(sha=full)
             if args.icode_template
@@ -184,6 +206,8 @@ def main() -> None:
             "icafe": args.icafe_template.format(card=card)
             if args.icafe_template and card != "NO-CARD"
             else "",
+            "decision": "",
+            "evidence": "",
         })
 
     tsv = out_dir / "inventory.tsv"

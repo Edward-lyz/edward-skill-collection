@@ -2,10 +2,10 @@
 
 A1 链路适配 + A2 监控适配 + A5 通用 BUGFIX 在 DSv4.1 那轮的完整落地物。
 
-**重放走提交，不走 diff。** 下面台账里的每个 SHA 都在 `origin/ds-dev-ds4.1f-0917` 上，逐笔
+**重放走提交，不走 diff。** 下面分类清单里的每个 SHA 都在 `origin/ds-dev-ds4.1f-0917` 上，逐笔
 `cherry-pick` 就能搬到新基线，提交信息、作者、Change-Id 全都跟着走。
-`assets/internal-platform-stack-dsv41.diff` 只是**兜底**：远端分支被删、提交不可达，或者只想
-一眼看全量差值时用它，正常路径不用。台账另一个用途是**反向核对的对照物**——平台依赖的路由、
+`assets/internal-platform-stack-dsv41.diff` 只是**备用**：远端分支被删、提交不可达，或者只想
+一眼看全量差值时用它，正常路径不用。分类清单另一个用途是**反向核对的对照物**——平台依赖的路由、
 指标族、日志 schema、环境变量读取点在这里一次看全。
 
 ## 出处
@@ -22,11 +22,11 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 ```
 
 区间内没有其它作者、没有 merge，所以两点 diff 就是这 23 笔的精确合并效果，不需要 cherry-pick
-重演。第 24 笔 `87fd6bb729` 交付镜像四件套（ci.yml / build/build.sh / dockerfile/）**刻意不在
+重演。第 24 笔 `87fd6bb729` 交付镜像构建文件（ci.yml / build/build.sh / dockerfile/）**刻意不在
 包里**：它绑在 `iregistry.baidu-int.com/lyz/lmsysorg/sglang:dev-dsv41` 这一个 base 上，照搬到
-新 base 等于把镜像指回旧 base。四件套按 references/delivery-image.md 的三分法重判。
+新 base 等于把镜像指回旧 base。镜像构建文件按 references/delivery-image.md 的三分法重判。
 
-## 台账
+## 分类清单
 
 顺序自上而下 = 原始拓扑序 = 重放顺序。
 
@@ -42,7 +42,7 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 | `6085834dff` | 4648/4996 | A1 | SDK/pydantic 生成的 `$ref`/`$defs` 工具 schema 语法后端跟不动，draft-07 `$id` 直接 400 | `function_call/utils`：`expand_json_schema_refs` + `normalize_json_schema_ids` |
 | `08606e8acd` | 5010 | A1 | 首 chunk 前的 abort 也回 200 + 带内 error，网关无法与坏请求区分 | `serving_base.raise_abort_before_stream`，`/generate` 同样 kick-start |
 | `c4e6bc4621` | 4648 | A1 | 网关按严格 struct 反序列化，null 的 role/tool_calls/tokens 整块失败 | `sse_utils.StreamDelta`、`protocol.DeltaMessage` |
-| `581ee64e41` | 4648 | A5 | 续传 chunk 吃满预算后等待队列仍空转一次 radix 匹配 + hicache 预取 | `scheduler` 续传后即查预算，NO_TOKEN 时置 `batch_is_full` |
+| `581ee64e41` | 4648 | A5 | 续传 chunk 吃满预算后等待队列仍多做一次无用的 radix 匹配 + hicache 预取 | `scheduler` 续传后即查预算，NO_TOKEN 时置 `batch_is_full` |
 | `412047d3f2` | 4771 | A2 | 厂内内容合规栈在社区无对应物，复读与违禁只有网关事后能管 | `content_detection/`（`CD_ENABLE_DETECTION` 默认关）+ chat 流式挂钩 |
 | `35f0a63153` | 4515 | A1 | 巡检工具轮询 `/get_instance_info` 取拓扑与实时负载 | 主 server + dummy server，`dp_ranks` 按 `node_rank` 切自己那段 |
 | `5283390d5d` | 3716 | A2 | detokenizer→tokenizer 的 IPC 堵塞看起来像模型变慢 | `BatchStrOutput` 打 wall clock，`sglang:detokenizer_to_tokenizer_time` |
@@ -54,7 +54,7 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 | `d77aa7e77c` | 4170 | A2 | 与厂内 K3 的 `/metrics` dump 对比后仍缺八族 | 前缀命中率、receiver 等待队列、启动/加载耗时取启动计时汇总、abort 与 bootstrap/transfer 计数器预热、三条路由挂 `func_latency_seconds` |
 | `5cdab3fab5` | 4170 | A2 | decode 侧 `kvcache_transfer_time` 无序列；L3 命中打扁平 `storage` | decode 出队处观测；`cache_source` 打后端类名 |
 | `51736cebf4` | 4170 | A2 | 空闲实例不驱逐，带 label 的计数器首次观测前不出现 | `evicted_tokens_total` 预注册默认 label |
-| `80f471dbd8` | 4170 | A2 | 评审查出 7 处缺陷：4 处能打挂请求或调度循环，3 处只失真 | Union `isinstance` 守卫、DECODE 分支兜底、除零、首 tick、`all_gather` 计时位置、跨进程 wall clock、锁一致性 |
+| `80f471dbd8` | 4170 | A2 | 评审查出 7 处缺陷：4 处能让请求或调度循环崩溃，3 处只失真 | Union `isinstance` 守卫、DECODE 分支默认处理、除零、首 tick、`all_gather` 计时位置、跨进程 wall clock、锁一致性 |
 
 ## 包里的平台硬契约
 
@@ -87,14 +87,14 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 
 ## 用法
 
-1. **按卡 cherry-pick**：台账自上而下就是原始拓扑序。同卡多笔用 `cherry-pick -n` 连拣再一次
+1. **按卡 cherry-pick**：分类清单自上而下就是原始拓扑序。同卡多笔用 `cherry-pick -n` 连续 pick再一次
    commit，`80f471dbd8` 是对监控栈的评审 fixup，连在它修的那几笔后面一起折叠，不单独成卡。
 2. **只核对不重放时**：拿「包里的平台硬契约」当清单，对着新分支跑
    `scripts/verify_platform_contract.py`，比从平台侧 dashboard 反推快一个量级。
-3. **兜底才用 diff**：`git apply --check --3way` 逐块看状态，报 already applied 的多半是社区
-   后来自己收了（按 C1 处置），报找不到宿主的进 sibling skill 的 L2/L9 重实现，别硬塞。
+3. **diff 只作备用**：`git apply --check --3way` 逐块看状态，报 already applied 的多半是社区
+   后来自己收了（按 C1 处置），报找不到落点的按 references/resolution-laws.md 的 L2/L9 重实现，别硬塞。
 
-## 2026-09-21 实账：整支重放到社区 main
+## 2026-09-21 实测：整支重放到社区 main
 
 社区 main 已对齐，从 main 开 `codex/dsv41-replay-on-main-0921`，把监控与 DSv4.1 多模态两组
 按卡重放：18 笔源提交（全部确认在 `origin/ds-dev-ds4.1f-0917` 上）折叠成 6 个提交，
@@ -140,7 +140,7 @@ git diff 8bd60a9913..80f471dbd8 -- python test > internal-platform-stack-dsv41.d
 
 ## 包里刻意留下的口子
 
-按硬规则 4，部分重放要写清留下什么、为什么、需要时从哪笔捡回来。这轮的五处：
+按硬规则 4，部分重放要写清留下什么、为什么、需要时从哪笔补迁。这轮的五处：
 
 - `412047d3f2` 只搬了合规检测，丢掉 KV-dump 的 `TraceManager`、`TraceReq`/`TraceType` 的
   io_struct 与 scheduler 管线、msit_llm NPU 调试器——它们是调试设施，且与社区

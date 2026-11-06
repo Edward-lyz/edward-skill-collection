@@ -30,7 +30,7 @@ def find_cli() -> str:
     cli = shutil.which("ipipe-cli") or os.path.expanduser("~/.ipipe-cli/bin/ipipe-cli")
     if os.access(cli, os.X_OK):
         return cli
-    # Not installed: fetch the official ipipe-official package and install the CLI.
+    # Not installed: run scripts/ensure_ipipe.sh to install the CLI.
     ensure = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ensure_ipipe.sh")
     proc = subprocess.run(["bash", ensure], capture_output=True, text=True)
     if proc.returncode != 0:

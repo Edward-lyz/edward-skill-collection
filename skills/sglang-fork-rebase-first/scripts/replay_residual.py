@@ -17,7 +17,12 @@
 
 一个已知盲点：**整行搬家在源侧会自相抵消**。某笔把一行加在 A 处、后一笔把同样一行移到 B
 处，源侧的加集与删集各含一次、相减后为空，而重放侧的净 diff 里它在 B 处出现一次，于是被
-报成「新造」。所以「漏迁」和「该删没删」是承重信号，「新造」是复核清单。
+报成「新造」。所以「漏迁」和「该删没删」是必须归零的信号，「新造」是复核清单。
+
+两类假阳性在报告前滤掉：源侧加的行若仍原样在 tip 的同一文件里（社区基线本来就有、或重放
+换了位置），不算漏迁；源侧删的行若 tip 的那个文件里已经没有，不算该删没删。源侧加在 A、
+重放侧加在别的文件的行单列为「搬家」（例：schedule_batch 的类搬到 req_types），只复核不阻塞。
+DSv4.1 实测：不滤时漏迁 430 行里约 370 行属于这两类。
 """
 
 from __future__ import annotations
@@ -101,30 +106,40 @@ def replay_side(
     return net(*changed_lines(diff))
 
 
-def load_accept(path: str | None) -> List[Tuple[str, str]]:
-    """--accept 文件：每行 `<匹配片段>\t<理由>`，# 开头是注释。
+def load_accept(path: str | None) -> List[Tuple[str, str, str]]:
+    """--accept 文件：每行 `<匹配片段>\t<理由>` 或 `<路径片段>\t<行片段>\t<理由>`，# 开头是注释。
+
+    两段式只匹配路径含 <匹配片段> 或行含 <匹配片段> 的残差，范围大；三段式要求路径和行同时
+    命中，`)`、`else:` 这类通用行用三段式限定到文件内的具体行，避免整文件放行。
 
     判据是「line-by-line 一致，除非上游改了接口」，所以理由必须写出来并点名上游那处
     变更；没有理由的规则直接拒绝，免得例外清单退化成消音开关。
     """
     if not path:
         return []
-    rules: List[Tuple[str, str]] = []
+    rules: List[Tuple[str, str, str]] = []
     for number, raw in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), 1):
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
-        pattern, _, reason = raw.partition("\t")
+        parts = raw.split("\t")
+        if len(parts) >= 3:
+            path_part, line_part, reason = parts[0], parts[1], "\t".join(parts[2:])
+        else:
+            path_part, line_part, reason = parts[0], "", parts[1] if len(parts) > 1 else ""
         if not reason.strip():
             raise SystemExit(f"{path}:{number} 这条例外没写理由，补上上游改了哪个接口")
-        rules.append((pattern.strip(), reason.strip()))
+        rules.append((path_part.strip(), line_part.strip(), reason.strip()))
     return rules
 
 
-def accepted(item: Tuple[str, str], rules: Iterable[Tuple[str, str]]) -> str | None:
+def accepted(item: Tuple[str, str], rules: Iterable[Tuple[str, str, str]]) -> str | None:
     """这条残差是否已被 --accept 里某条规则解释；命中就返回那条理由。"""
     path, line = item
-    for pattern, reason in rules:
-        if pattern in path or pattern in line:
+    for path_part, line_part, reason in rules:
+        if line_part:
+            if path_part in path and line_part in line:
+                return reason
+        elif path_part in path or path_part in line:
             return reason
     return None
 
@@ -145,8 +160,8 @@ def render(title: str, items: Set[Tuple[str, str]], cap: int) -> List[str]:
     for path, entries in group(items).items():
         lines.append(f"### `{path}`（{len(entries)} 行）")
         lines.append("")
-        lines += [f"- `{entry}`" for entry in entries[:cap]]
-        if len(entries) > cap:
+        lines += [f"- `{entry}`" for entry in (entries[:cap] if cap else entries)]
+        if cap and len(entries) > cap:
             lines.append(f"- …另有 {len(entries) - cap} 行")
         lines.append("")
     return lines
@@ -163,7 +178,7 @@ def main() -> int:
     parser.add_argument("--tip", default="HEAD", help="重放后的分支 tip")
     parser.add_argument("--path", action="append", default=[], help="限定路径，可重复")
     parser.add_argument("--accept", help="已解释残差的清单文件")
-    parser.add_argument("--cap", type=int, default=12, help="每个文件最多列几行")
+    parser.add_argument("--cap", type=int, default=0, help="每个文件最多列几行，0 表示全列")
     parser.add_argument("-o", "--output")
     args = parser.parse_args()
 
@@ -173,18 +188,37 @@ def main() -> int:
     new_added, new_removed = replay_side(repo, args.new_base, args.tip, paths)
     rules = load_accept(args.accept)
 
-    missing = {i for i in src_added - new_added if not accepted(i, rules)}
+    raw_missing = {i for i in src_added - new_added if not accepted(i, rules)}
+    raw_kept = {i for i in src_removed - new_removed if not accepted(i, rules)}
+    tip_lines: Dict[str, Set[str]] = {}
+    for path in {p for p, _ in raw_missing | raw_kept}:
+        blob = subprocess.run(
+            ["git", "-C", str(repo), "show", f"{args.tip}:{path}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        tip_lines[path] = (
+            {normalize(x) for x in blob.stdout.splitlines()} if blob.returncode == 0 else set()
+        )
+    present = {i for i in raw_missing if i[1] in tip_lines[i[0]]}
+    added_elsewhere = {line for _, line in new_added}
+    moved = {i for i in raw_missing - present if i[1] in added_elsewhere}
+    missing = raw_missing - present - moved
     extra = {i for i in new_added - src_added if not accepted(i, rules)}
-    kept = {i for i in src_removed - new_removed if not accepted(i, rules)}
+    extra -= {(p, line) for p, line in extra if line in {m[1] for m in moved}}
+    kept = {i for i in raw_kept if i[1] in tip_lines[i[0]]}
 
     report = [
         f"# 重放语义残差：{args.new_base}..{args.tip}",
         "",
         f"源侧 {len(args.source_commit)} 笔提交，净加 {len(src_added)} 行、净删 "
         f"{len(src_removed)} 行；重放侧净加 {len(new_added)} 行、净删 {len(new_removed)} 行。"
-        f"已解释规则 {len(rules)} 条。",
+        f"已解释规则 {len(rules)} 条。已滤掉：仍在 tip 同一文件的源侧加行 {len(present)} 行，"
+        f"tip 文件里已不存在的源侧删行 {len(raw_kept) - len(kept)} 行。",
         "",
         *render("漏迁（源侧加了、重放侧没有）", missing, args.cap),
+        *render("搬家（源侧加在此文件、重放侧加在别的文件，复核不阻塞）", moved, args.cap),
         *render("新造（重放侧加了、源侧没有）", extra, args.cap),
         *render("该删没删（源侧删了、重放侧还留着）", kept, args.cap),
     ]
@@ -196,7 +230,8 @@ def main() -> int:
 
     total = len(missing) + len(kept)
     print(
-        f"残差：漏迁 {len(missing)} 行，该删没删 {len(kept)} 行，新造 {len(extra)} 行",
+        f"残差：漏迁 {len(missing)} 行，该删没删 {len(kept)} 行，搬家 {len(moved)} 行，"
+        f"新造 {len(extra)} 行",
         file=sys.stderr,
     )
     return 1 if total else 0

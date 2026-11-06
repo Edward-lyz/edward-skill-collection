@@ -24,17 +24,17 @@ comm -23 <(routes "$FORK_TIP") <(routes "$DELIVERY_BRANCH")
 
 ### 根因链
 
-1. 台账里 `073d8e98d8 | luno-4515 | non-master get_instance_info | replayed | ef075e74b7`
+1. 分类清单里 `073d8e98d8 | luno-4515 | non-master get_instance_info | replayed | ef075e74b7`
    这行的 evidence 自己写着 `/ready forwarding dropped`——重放时只搬了同一 commit 里的
-   `/get_instance_info`，把 `/ready` 当「缺宿主」丢掉了。
+   `/get_instance_info`，把 `/ready` 当「缺落点」丢掉了。
 2. `/ready` 最早不是通过独立卡片进 fork 的，而是 `147c4e45af luno-4170 Pick aiak code
    0522` 这类批量搬运提交带进来的，而清单消噪规则专门跳过这种提交。
-3. 于是正向台账两条路都看不见它。
+3. 于是按分类清单正向查，两条路都看不见它。
 
 ### 沉淀
 
-- 反向核对（从平台契约回查代码）必须作为独立门禁步骤，不能只做正向台账。
-- 「缺宿主」的改动两条出路：补宿主，或在台账里显式登记为阻塞项并写明平台影响。禁止静默
+- 反向核对（从平台契约回查代码）必须作为独立门禁步骤，不能只按分类清单正向查。
+- 「缺落点」的改动两条出路：补落点，或在分类清单里显式登记为阻塞项并写明平台影响。禁止静默
   丢弃。
 
 ## 二、启动参数：两个已不存在的参数
@@ -60,7 +60,7 @@ python3 scripts/check_launch_args.py --repo "$NEW_BASE_WORKTREE" --yaml <发版 
 | 参数 | 归属 | 证据 | 处置 |
 |---|---|---|---|
 | `--collect-tokens-histogram` | 社区已删 | `6344b546c8 Deprecate --collect-tokens-histogram, auto-collect with --enable-metrics (#23595)`；三个 token 直方图现在在 `TokenizerMetricsCollector.__init__` 里无条件创建，分桶走 `--prompt-tokens-buckets` / `--generation-tokens-buckets` | 删参数，能力不丢 |
-| `--disaggregation-zmq-ports` | 厂内私有 | `ed3362f22c luno-3729 [Task] 新增feature: 支持启动参数指定zmq端口及MAX_SOCKETS`；`git branch --contains` 只命中 `glm-0312-w4-v0.5.16-replay` | 删参数，台账记「PD 通道端口不可钉，需要时迁 ed3362f22c」 |
+| `--disaggregation-zmq-ports` | 厂内私有 | `ed3362f22c luno-3729 [Task] 新增feature: 支持启动参数指定zmq端口及MAX_SOCKETS`；`git branch --contains` 只命中 `glm-0312-w4-v0.5.16-replay` | 删参数，分类清单记「PD 通道端口不可钉，需要时迁 ed3362f22c」 |
 | `--disaggregation-zmq-max-sockets` | 同上 | 同上 | 同上 |
 
 八个 ref 都 grep 过 `collect_tokens_histogram`（GLM 交付分支、community main 0908、
@@ -143,7 +143,7 @@ elif self.disaggregation_mode != DisaggregationMode.PREFILL:
 这是厂内 luno-3716 两笔的效果（`5063a923df ttft metric in prefill`、
 `1058353184 Remove itl metric in prefill`），核对时别把 prefill 侧没有 ITL 当漏迁。
 
-## 五、监控类台账在 DSv4.1 这轮的实际分布
+## 五、监控类分类清单在 DSv4.1 这轮的实际分布
 
 | SHA | 卡 | 主题 | 决策 |
 |---|---|---|---|
@@ -157,7 +157,7 @@ elif self.disaggregation_mode != DisaggregationMode.PREFILL:
 
 `13cdb6224c` 留下的是 KV-dump 的 TraceManager 及其 io_struct / scheduler 管线，理由是
 调试工具、与 `observability/trace.py` 平行实现。**部分重放必须把留下什么、为什么、需要时
-从哪笔捡回来写进 evidence 列**，否则下一轮分不清是有意不要还是漏了。
+从哪笔补迁写进 evidence 列**，否则下一轮分不清是有意不要还是漏了。
 
 结论性经验：监控类整体倾向必迁，7 笔里 6 笔全量重放。这类改动通常只碰
 `observability/` 与 `managers/`，冲突面小，收益是平台可观测性不回退。
@@ -170,7 +170,7 @@ elif self.disaggregation_mode != DisaggregationMode.PREFILL:
 ernie-ops.baidu-int.com/feddeploy-name
 ernie-ops.baidu-int.com/inference-service-name
 ernie-ops.baidu-int.com/model-name
-ernie-ops.baidu-int.com/platform     # 四件套必须用平台注册过的服务名
+ernie-ops.baidu-int.com/platform     # 这四个标签必须用平台注册过的服务名
 探针路径 = 代码里真实存在的路由（/ready、/health_forward）
 ```
 
@@ -243,7 +243,7 @@ K3 的 `engine_startup_time` / `engine_load_weights_time` 是
 2. **时间戳 helper 缺分支隐式返回 None**。`get_request_first_token_forward_time` 只写
    NULL / PREFILL，DECODE 落到函数尾返回 None → `Histogram.observe(None)` TypeError，
    炸在调度器批结果主循环上。同文件的兄弟函数 `get_request_waiting_time` 写了 DECODE
-   分支和 `return 0.0` 兜底，照它写。
+   分支和 `return 0.0` 作默认值，照它写。
 3. **msgspec Struct 配 Union 形参**。字段只声明在 `TokenizedGenerateReqInput`，而
    `_send_one_request` 的形参是
    `Union[TokenizedGenerateReqInput, TokenizedEmbeddingReqInput]`，无 `isinstance` 守卫
