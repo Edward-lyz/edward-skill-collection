@@ -40,6 +40,7 @@ class Finding:
 
     def key(self) -> tuple[str, str, str]:
         # Line numbers shift between trees, so parent comparison ignores them.
+        """Return the identity used to deduplicate findings."""
         return (self.path, self.kind, self.detail)
 
 
@@ -47,6 +48,7 @@ class Tree:
     """File list plus module index of one revision (or the working tree)."""
 
     def __init__(self, repo: Path, rev: Optional[str], package_root: str) -> None:
+        """Bind the tree view to a repo, revision and package root."""
         self.repo = repo
         self.rev = rev
         self.package_root = package_root.strip("/")
@@ -56,6 +58,7 @@ class Tree:
         self._symbol_cache: dict[str, Optional[frozenset[str]]] = {}
 
     def _git(self, *args: str) -> str:
+        """Run git in the repo and return stdout."""
         result = subprocess.run(
             ["git", "-C", str(self.repo), *args],
             check=True,
@@ -65,6 +68,7 @@ class Tree:
         return result.stdout
 
     def _list_files(self) -> frozenset[str]:
+        """List every file at the revision."""
         if self.rev is None:
             out = self._git("ls-files", "--", self.package_root)
         else:
@@ -74,6 +78,7 @@ class Tree:
         return frozenset(line for line in out.splitlines() if line.endswith(".py"))
 
     def _index_modules(self) -> tuple[frozenset[str], frozenset[str]]:
+        """Index importable modules and packages under the package root."""
         modules: set[str] = set()
         packages: set[str] = set()
         prefix = f"{self.package_root}/" if self.package_root else ""
@@ -93,9 +98,11 @@ class Tree:
         return frozenset(modules), frozenset(packages)
 
     def top_level_names(self) -> frozenset[str]:
+        """Return the top-level package names in the tree."""
         return frozenset(name.split(".")[0] for name in self.modules | self.packages)
 
     def read(self, path: str) -> Optional[str]:
+        """Return file content, or None if absent."""
         if path in self._source_cache:
             return self._source_cache[path]
         text: Optional[str]
@@ -110,6 +117,7 @@ class Tree:
         return text
 
     def module_path(self, module: str) -> Optional[str]:
+        """Return the file path that implements the module, or None."""
         prefix = f"{self.package_root}/" if self.package_root else ""
         as_module = prefix + module.replace(".", "/") + ".py"
         if as_module in self.files:
@@ -120,6 +128,7 @@ class Tree:
         return None
 
     def has_module(self, module: str) -> bool:
+        """Return True if the module exists in the tree."""
         return module in self.modules or module in self.packages
 
     def exported_names(self, module: str) -> Optional[frozenset[str]]:
@@ -293,6 +302,7 @@ def _record_binding(
     bound: str,
     source: str,
 ) -> None:
+    """Record a name bound by an import statement."""
     previous = bindings.get(bound)
     if previous is not None and previous != source:
         findings.append(
@@ -302,10 +312,12 @@ def _record_binding(
 
 
 def is_critical(path: str, patterns: list[str]) -> bool:
+    """Return True if the path matches any critical pattern."""
     return any(fnmatch.fnmatch(path, pattern) for pattern in patterns)
 
 
 def main() -> int:
+    """Parse arguments, audit imports and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument(
@@ -353,6 +365,7 @@ def main() -> int:
         "| --- | --- | --- | --- |",
     ]
     def sort_key(item: tuple[str, Finding]) -> tuple[str, str, int]:
+        """Sort findings by severity, path and line."""
         return (item[0], item[1].path, item[1].line)
 
     for label, finding in sorted(rows, key=sort_key):

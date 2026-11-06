@@ -91,6 +91,7 @@ def find_readers(
 
 
 def read_revision(repo: Path, rev: Optional[str], path: str) -> Optional[str]:
+    """Return file content at rev, or the working tree file when rev is None."""
     if rev is None:
         try:
             return (repo / path).read_text(encoding="utf-8", errors="replace")
@@ -141,6 +142,7 @@ def collect_fields(
 
 
 def main() -> int:
+    """Parse arguments, diff flag inventories and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--file", default="python/sglang/srt/server_args.py")

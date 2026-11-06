@@ -21,12 +21,14 @@ DEFAULT_CARD_PATTERN = r"\b[a-z]+-\d+\b"
 
 
 def git(repo: Path, *args: str) -> str:
+    """Run git in repo and return stdout."""
     return subprocess.check_output(
         ["git", "-C", str(repo), *args], text=True, stderr=subprocess.STDOUT
     ).strip()
 
 
 def main() -> int:
+    """Parse arguments, check review readiness and print the result."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--target-sha", required=True)

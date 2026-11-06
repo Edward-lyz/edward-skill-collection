@@ -5,6 +5,7 @@ Commands: list | plan | run | status | result.
 Recipes live in ../references/scenarios.json; fixed params are baked in, the
 `ask` params must come from the user via --set key=value.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -35,10 +36,12 @@ class IpipeError(RuntimeError):
 
 
 def load_config() -> dict[str, Any]:
+    """Load the scenario config."""
     return json.loads(SCENARIOS_PATH.read_text(encoding="utf-8"))
 
 
 def pick_scenario(cfg: dict[str, Any], name: str) -> tuple[str, dict[str, Any]]:
+    """Return the scenario key and config for a name or alias."""
     key = cfg["aliases"].get(name.strip().lower(), name.strip().lower())
     if key not in cfg["scenarios"]:
         raise IpipeError(f"unknown scenario {name!r}; known: {sorted(cfg['scenarios'])}")
@@ -46,6 +49,7 @@ def pick_scenario(cfg: dict[str, Any], name: str) -> tuple[str, dict[str, Any]]:
 
 
 def parse_sets(items: list[str]) -> dict[str, str]:
+    """Parse KEY=VALUE overrides."""
     out: dict[str, str] = {}
     for item in items:
         key, sep, value = item.partition("=")
@@ -55,7 +59,9 @@ def parse_sets(items: list[str]) -> dict[str, str]:
     return out
 
 
-def resolve_stage_params(stage: dict[str, Any], overrides: dict[str, str]) -> tuple[dict[str, str], list[dict[str, Any]]]:
+def resolve_stage_params(
+    stage: dict[str, Any], overrides: dict[str, str]
+) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """Merge fixed + user values. Returns (params, missing ask entries). Unknown keys fail fast."""
     fixed: dict[str, str] = dict(stage.get("fixed", {}))
     ask: list[dict[str, Any]] = stage.get("ask", [])
@@ -87,13 +93,19 @@ def resolve_plan(scn: dict[str, Any], overrides: dict[str, str]) -> tuple[list[d
     missing: list[dict[str, Any]] = []
     prev: dict[str, str] = {}
     declared = [s for s in scn["stages"] if not s.get("same_params_as_previous")]
-    union = {k for s in declared for k in [*s.get("fixed", {}), *(a["key"] for a in s.get("ask", [])), *s.get("optional", [])]}
+    union = {
+        k
+        for s in declared
+        for k in [*s.get("fixed", {}), *(a["key"] for a in s.get("ask", [])), *s.get("optional", [])]
+    }
     unknown = sorted(set(overrides) - union)
     if unknown:
         raise IpipeError(f"keys not in this recipe: {unknown}; allowed: {sorted(union)}")
     for stage in scn["stages"]:
         if stage.get("same_params_as_previous"):
-            stages.append({"match": stage["match"], "params": dict(prev), "expect_skipped": stage.get("expect_skipped")})
+            stages.append(
+                {"match": stage["match"], "params": dict(prev), "expect_skipped": stage.get("expect_skipped")}
+            )
             continue
         own = {*stage.get("fixed", {}), *(a["key"] for a in stage.get("ask", [])), *stage.get("optional", [])}
         params, miss = resolve_stage_params(stage, {k: v for k, v in overrides.items() if k in own})
@@ -104,6 +116,7 @@ def resolve_plan(scn: dict[str, Any], overrides: dict[str, str]) -> tuple[list[d
 
 
 def cli_path() -> str:
+    """Return the path of ipipe-cli."""
     found = shutil.which("ipipe-cli")
     if found:
         return found
@@ -113,21 +126,30 @@ def cli_path() -> str:
 
 
 def cli(*args: str) -> Any:
+    """Run ipipe-cli and return its parsed JSON output."""
     proc = subprocess.run([cli_path(), *args], capture_output=True, text=True, timeout=120)
     try:
         data = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        raise IpipeError(f"ipipe-cli {' '.join(args[:3])} exit={proc.returncode}: {(proc.stdout + proc.stderr)[:400]}") from None
-    if proc.returncode != 0 or (isinstance(data, dict) and data.get("code", 200) != 200) or (isinstance(data, dict) and data.get("error")):
+        raise IpipeError(
+            f"ipipe-cli {' '.join(args[:3])} exit={proc.returncode}: {(proc.stdout + proc.stderr)[:400]}"
+        ) from None
+    if (
+        proc.returncode != 0
+        or (isinstance(data, dict) and data.get("code", 200) != 200)
+        or (isinstance(data, dict) and data.get("error"))
+    ):
         raise IpipeError(f"ipipe-cli {' '.join(args[:3])} failed: {json.dumps(data, ensure_ascii=False)[:400]}")
     return data
 
 
 def stages_of(pbid: int) -> list[dict[str, Any]]:
+    """Return the stage builds of a pipeline build."""
     return list(cli("build", "status", "--pipeline-build-id", str(pbid))["entities"])
 
 
 def find_stage(stages: list[dict[str, Any]], match: str) -> dict[str, Any] | None:
+    """Return the stage whose name contains match, or None."""
     return next((s for s in stages if match in s["stageName"]), None)
 
 
@@ -146,7 +168,10 @@ def wait_stage(pbid: int, match: str, want: set[str], timeout: int) -> dict[str,
     raise IpipeError(f"timeout waiting for stage {match!r} to reach {sorted(want)}")
 
 
-def start_pipeline(scn: dict[str, Any], cfg: dict[str, Any], stages: list[dict[str, Any]], branch: str) -> dict[str, Any]:
+def start_pipeline(
+    scn: dict[str, Any], cfg: dict[str, Any], stages: list[dict[str, Any]], branch: str
+) -> dict[str, Any]:
+    """Trigger the pipeline and start the requested stages."""
     res = cli("trigger", "start", "--pipeline-id", str(scn["pipeline_id"]), "--branch", branch)["entities"]
     pbid = int(res["pipelineBuildId"])
     started = []
@@ -163,10 +188,16 @@ def start_pipeline(scn: dict[str, Any], cfg: dict[str, Any], stages: list[dict[s
         if guard:  # a deploy stage that runs instead of skipping replaces the live environment
             deploy = wait_stage(pbid, guard, {"SKIPPED", "RUNNING", "SUCC", "FAIL", "CANCEL"}, STAGE_WAIT_SECONDS)
             if deploy["status"] != "SKIPPED":
-                raise IpipeError(f"stage {guard!r} is {deploy['status']}, expected SKIPPED: build {pbid} is redeploying; "
-                                 "cancel it with `ipipe-cli build cancel` before it replaces the environment")
-    return {"pipelineBuildId": pbid, "buildNumber": res.get("buildNumber"),
-            "url": BUILD_URL.format(ws=cfg["workspace_id"], pbid=pbid), "started_stages": started}
+                raise IpipeError(
+                    f"stage {guard!r} is {deploy['status']}, expected SKIPPED: build {pbid} is redeploying; "
+                    "cancel it with `ipipe-cli build cancel` before it replaces the environment"
+                )
+    return {
+        "pipelineBuildId": pbid,
+        "buildNumber": res.get("buildNumber"),
+        "url": BUILD_URL.format(ws=cfg["workspace_id"], pbid=pbid),
+        "started_stages": started,
+    }
 
 
 def wait_done(pbid: int, timeout: int) -> str:
@@ -183,10 +214,12 @@ def wait_done(pbid: int, timeout: int) -> str:
 
 
 def mask(text: str) -> str:
+    """Mask tokens and passwords in text."""
     return SECRET_RE.sub("<secret>", text)
 
 
 def job_result(job_id: int) -> dict[str, Any]:
+    """Return the status and key log lines of a job."""
     job = cli("build", "job", "--job-build-id", str(job_id))
     plugin = job.get("pluginJobBuild") or {}
     out: dict[str, Any] = {
@@ -205,16 +238,27 @@ def job_result(job_id: int) -> dict[str, Any]:
 
 
 def collect_result(pbid: int, cfg: dict[str, Any]) -> dict[str, Any]:
+    """Collect stage and job results of a pipeline build."""
     stages = stages_of(pbid)
-    summary = [{"stage": s["stageName"].strip(), "status": s["status"],
-                "jobs": [{"name": j["jobName"].strip(), "status": j["status"], "id": j["id"]} for j in s["jobBuildBeans"]]}
-               for s in stages]
+    summary = [
+        {
+            "stage": s["stageName"].strip(),
+            "status": s["status"],
+            "jobs": [{"name": j["jobName"].strip(), "status": j["status"], "id": j["id"]} for j in s["jobBuildBeans"]],
+        }
+        for s in stages
+    ]
     jobs = {j["id"]: job_result(j["id"]) for s in stages for j in s["jobBuildBeans"] if j["status"] in {"SUCC", "FAIL"}}
-    return {"pipelineBuildId": pbid, "url": BUILD_URL.format(ws=cfg["workspace_id"], pbid=pbid),
-            "stages": summary, "jobs": jobs}
+    return {
+        "pipelineBuildId": pbid,
+        "url": BUILD_URL.format(ws=cfg["workspace_id"], pbid=pbid),
+        "stages": summary,
+        "jobs": jobs,
+    }
 
 
 def main() -> int:
+    """Parse arguments and run the subcommand."""
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("list")
@@ -224,7 +268,9 @@ def main() -> int:
         p.add_argument("--set", action="append", default=[], dest="sets")
         p.add_argument("--branch")
     sub.choices["run"].add_argument("--yes", action="store_true", help="really trigger; without it run == plan")
-    sub.choices["run"].add_argument("--wait", type=int, default=0, metavar="SECONDS", help="wait for completion then print result")
+    sub.choices["run"].add_argument(
+        "--wait", type=int, default=0, metavar="SECONDS", help="wait for completion then print result"
+    )
     for name in ("status", "result"):
         sub.add_parser(name).add_argument("pipeline_build_id", type=int)
     args = ap.parse_args()
@@ -235,15 +281,25 @@ def main() -> int:
                 print(f"{key:11} pipeline={scn['pipeline_id']:<8} {scn['title']}  [verified: {scn['verified']}]")
             return 0
         if args.cmd in {"status", "result"}:
-            out = collect_result(args.pipeline_build_id, cfg) if args.cmd == "result" else stages_of(args.pipeline_build_id)
+            out = (
+                collect_result(args.pipeline_build_id, cfg)
+                if args.cmd == "result"
+                else stages_of(args.pipeline_build_id)
+            )
             print(json.dumps(out, ensure_ascii=False, indent=1))
             return 0
         key, scn = pick_scenario(cfg, args.scenario)
         if scn.get("kind") == "aiqa":
             raise IpipeError("aiqa scenario is not scripted; follow references/ipipe-api.md section 'AI 智能测试'")
         stages, missing = resolve_plan(scn, parse_sets(args.sets))
-        plan = {"scenario": key, "pipeline_id": scn["pipeline_id"], "heavy": bool(scn.get("heavy")),
-                "branch": args.branch or cfg["branch"], "stages": stages, "missing_ask": missing}
+        plan = {
+            "scenario": key,
+            "pipeline_id": scn["pipeline_id"],
+            "heavy": bool(scn.get("heavy")),
+            "branch": args.branch or cfg["branch"],
+            "stages": stages,
+            "missing_ask": missing,
+        }
         if missing:
             print(json.dumps(plan, ensure_ascii=False, indent=1))
             return 2  # caller must ask the user for these keys
@@ -254,7 +310,11 @@ def main() -> int:
         print(json.dumps(started, ensure_ascii=False, indent=1))
         if args.wait:
             state = wait_done(started["pipelineBuildId"], args.wait)
-            print(json.dumps({"state": state, **collect_result(started["pipelineBuildId"], cfg)}, ensure_ascii=False, indent=1))
+            print(
+                json.dumps(
+                    {"state": state, **collect_result(started["pipelineBuildId"], cfg)}, ensure_ascii=False, indent=1
+                )
+            )
         return 0
     except IpipeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

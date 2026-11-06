@@ -62,6 +62,7 @@ UNIT_SEP = chr(31)
 
 
 def run(repo: Path, *args: str) -> str:
+    """Run git in repo and return stdout."""
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
@@ -136,6 +137,7 @@ def score_pair(
 
 
 def classify(fork: dict, shared_files: set[str], shared_topics: set[str]) -> str:
+    """Classify a fork commit by its overlap with upstream files and topics."""
     if not shared_files:
         return "TOPIC-ONLY"
     if not shared_topics:
@@ -148,6 +150,7 @@ def classify(fork: dict, shared_files: set[str], shared_topics: set[str]) -> str
 def build_report(base: str, fork_commits: list[dict], upstream_commits: list[dict],
                  pairs: list[dict], counts: dict[str, int],
                  waived: list[dict]) -> str:
+    """Render overlapping fork and upstream commits as Markdown."""
     lines = ["# Intent overlap scan", ""]
     lines.append(f"merge base: {base[:12]}")
     lines.append(
@@ -197,6 +200,7 @@ def build_report(base: str, fork_commits: list[dict], upstream_commits: list[dic
 
 
 def main() -> int:
+    """Parse arguments, compare commit intents and print the report."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--target", required=True, help="fork parent SHA")

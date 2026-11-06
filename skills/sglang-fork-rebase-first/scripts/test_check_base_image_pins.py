@@ -1,4 +1,5 @@
 """python3 -m unittest test_check_base_image_pins  (inside scripts/)"""
+
 from __future__ import annotations
 
 import tempfile
@@ -23,13 +24,17 @@ dependencies = [
 
 
 class PinsTest(unittest.TestCase):
+    """Tests for check_base_image_pins."""
+
     def setUp(self) -> None:
+        """Write a sample requirements file."""
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pyproject.toml"
             path.write_text(PYPROJECT, encoding="utf-8")
             self.pins = pins.read_pins(path)
 
     def test_reads_pins_skips_markers_and_unpinned(self) -> None:
+        """Pins are read; markers and unpinned lines are skipped."""
         self.assertEqual(self.pins["torch"], [("==", "2.14.1")])
         self.assertEqual(self.pins["flashinfer-python"], [("==", "0.7.1")])
         self.assertEqual(self.pins["kernels"], [(">=", "0.14.1"), ("<", "0.15")])
@@ -37,20 +42,29 @@ class PinsTest(unittest.TestCase):
         self.assertNotIn("aiohttp", self.pins)
 
     def test_old_dev_image_fails_on_enforced_pins(self) -> None:
-        old = {"torch": "2.13.0+cu130", "sglang-kernel": "0.4.6.post1", "flashinfer-python": "0.6.18", "kernels": "0.14.2"}
+        """An old dev image fails on enforced pins."""
+        old = {
+            "torch": "2.13.0+cu130",
+            "sglang-kernel": "0.4.6.post1",
+            "flashinfer-python": "0.6.18",
+            "kernels": "0.14.2",
+        }
         rows = pins.check(self.pins, old, {"torch", "sglang-kernel"})
         self.assertEqual({r[1] for r in rows if r[0] == "FAIL"}, {"torch", "sglang-kernel"})
         self.assertIn("flashinfer-python", {r[1] for r in rows if r[0] == "WARN"})
 
     def test_matching_image_passes_and_local_tag_is_ignored(self) -> None:
+        """A matching image passes and local version tags are ignored."""
         good = {"torch": "2.14.1+cu130", "sglang-kernel": "0.4.9", "flashinfer-python": "0.7.1", "kernels": "0.14.2"}
         self.assertEqual(pins.check(self.pins, good, {"torch", "sglang-kernel"}), [])
 
     def test_post_release_is_not_equal_to_the_pin(self) -> None:
+        """A post release does not equal the pinned version."""
         rows = pins.check(self.pins, {"torch": "2.14.1", "sglang-kernel": "0.4.9.post1"}, {"sglang-kernel"})
         self.assertIn(("FAIL", "sglang-kernel", "==0.4.9", "0.4.9.post1"), rows)
 
     def test_missing_enforced_package_fails(self) -> None:
+        """A missing enforced package fails."""
         rows = pins.check(self.pins, {"torch": "2.14.1"}, {"torch", "sglang-kernel"})
         self.assertIn(("FAIL", "sglang-kernel", "==0.4.9", "missing"), rows)
 

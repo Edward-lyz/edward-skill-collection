@@ -31,6 +31,7 @@ SKIP_DIRS = ("test/", "tests/", "benchmark/", "scripts/", "tools/", "examples/")
 
 
 def git(repo: Path, *args: str) -> str:
+    """Run git in repo and return stdout."""
     result = subprocess.run(
         ["git", "-C", str(repo), *args], check=False, capture_output=True, text=True
     )
@@ -38,6 +39,7 @@ def git(repo: Path, *args: str) -> str:
 
 
 def list_files(repo: Path, rev: Optional[str], root: str) -> set[str]:
+    """List files under root at rev, or in the working tree when rev is None."""
     if rev is None:
         out = git(repo, "ls-files", "--", root)
     else:
@@ -46,6 +48,7 @@ def list_files(repo: Path, rev: Optional[str], root: str) -> set[str]:
 
 
 def module_of(path: str, package_root: str) -> str:
+    """Convert a file path to its dotted module name."""
     relative = path[len(package_root) + 1 :] if package_root else path
     parts = relative[: -len(".py")].split("/")
     if parts[-1] == "__init__":
@@ -64,6 +67,7 @@ def deployment_flags(paths: list[Path]) -> set[str]:
 
 
 def referencing_files(repo: Path, needle: str, own_path: str) -> set[str]:
+    """Return files other than own_path that mention needle."""
     found = set()
     for line in git(repo, "grep", "-l", "-F", "-e", needle, "--", "*.py").splitlines():
         if line != own_path:
@@ -72,6 +76,7 @@ def referencing_files(repo: Path, needle: str, own_path: str) -> set[str]:
 
 
 def main() -> int:
+    """Parse arguments, find unreferenced modules and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--target", required=True, help="target/fork parent revision")

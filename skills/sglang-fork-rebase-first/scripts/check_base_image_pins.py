@@ -14,6 +14,7 @@ Other pins are listed as WARN only: the runtime asserts a few packages (`assert_
 in srt/utils/common.py), not all of them, and `pip list` of a base image misses packages that
 the delivery Dockerfile installs later.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -24,11 +25,15 @@ import tomllib
 from pathlib import Path
 
 DEFAULT_ENFORCED = ("torch", "sglang-kernel")  # torch pins the build; sglang-kernel is asserted at start
-REQ_RE = re.compile(r"^\s*([A-Za-z0-9_.\-]+)\s*(?:\[[^\]]*\])?\s*((?:==|>=|<=|~=|>|<)[^;,#]+(?:,\s*(?:==|>=|<=|~=|>|<)[^;,#]+)*)?\s*(;.*)?$")
+REQ_RE = re.compile(
+    r"^\s*([A-Za-z0-9_.\-]+)\s*(?:\[[^\]]*\])?\s*"
+    r"((?:==|>=|<=|~=|>|<)[^;,#]+(?:,\s*(?:==|>=|<=|~=|>|<)[^;,#]+)*)?\s*(;.*)?$"
+)
 CLAUSE_RE = re.compile(r"(==|>=|<=|~=|>|<)\s*([^\s,]+)")
 
 
 def norm(name: str) -> str:
+    """Normalize a package name per PEP 503."""
     return re.sub(r"[-_.]+", "-", name).lower()
 
 
@@ -41,6 +46,7 @@ def numeric(version: str) -> tuple[int, ...]:
 
 
 def satisfies(installed: str, op: str, wanted: str) -> bool:
+    """Return True if the installed version satisfies one specifier."""
     have, want = numeric(installed), numeric(wanted)
     width = max(len(have), len(want))
     have, want = have + (0,) * (width - len(have)), want + (0,) * (width - len(want))
@@ -64,7 +70,9 @@ def read_pins(pyproject: Path) -> dict[str, list[tuple[str, str]]]:
     return pins
 
 
-def check(pins: dict[str, list[tuple[str, str]]], installed: dict[str, str], enforced: set[str]) -> list[tuple[str, str, str, str]]:
+def check(
+    pins: dict[str, list[tuple[str, str]]], installed: dict[str, str], enforced: set[str]
+) -> list[tuple[str, str, str, str]]:
     """Rows of (level, package, wanted, found) for every pin that is not met.
 
     A non-enforced package absent from the image is skipped: the delivery Dockerfile installs
@@ -85,6 +93,7 @@ def check(pins: dict[str, list[tuple[str, str]]], installed: dict[str, str], enf
 
 
 def main() -> int:
+    """Compare the image's installed packages with the pins and print violations."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pyproject", type=Path, required=True)
     ap.add_argument("--pip-list", type=Path, required=True, help="`pip list --format=json` of the BASE_IMAGE")

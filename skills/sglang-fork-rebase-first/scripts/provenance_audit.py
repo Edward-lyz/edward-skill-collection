@@ -38,21 +38,25 @@ WHITESPACE_RUN = re.compile(r"\s+")
 
 
 class GitError(RuntimeError):
+    """Raised when a git command fails."""
     pass
 
 
 @dataclass
 class Hunk:
+    """A run of added lines that no source commit explains."""
     path: str
     start: int
     lines: list[str]
 
     @property
     def end(self) -> int:
+        """Return the last line number of the hunk."""
         return self.start + len(self.lines) - 1
 
 
 def run_git(repo: Path, *args: str) -> str:
+    """Run git in repo and return stdout."""
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         check=False,
@@ -67,6 +71,7 @@ def run_git(repo: Path, *args: str) -> str:
 
 
 def verify_revision(repo: Path, revision: str) -> str:
+    """Resolve a revision to a full commit SHA."""
     return run_git(repo, "rev-parse", "--verify", f"{revision}^{{commit}}").strip()
 
 
@@ -122,6 +127,7 @@ def added_lines(
 
 
 def group_hunks(unmatched: list[tuple[str, int, str]]) -> list[Hunk]:
+    """Group unmatched lines into contiguous hunks per file."""
     hunks: list[Hunk] = []
     for path, lineno, text in unmatched:
         last = hunks[-1] if hunks else None
@@ -133,6 +139,7 @@ def group_hunks(unmatched: list[tuple[str, int, str]]) -> list[Hunk]:
 
 
 def load_waivers(path: Path | None) -> dict[str, str]:
+    """Load waivers keyed by file:line."""
     if path is None or not path.exists():
         return {}
     waivers = {}
@@ -146,6 +153,7 @@ def load_waivers(path: Path | None) -> dict[str, str]:
 
 
 def main() -> int:
+    """Parse arguments, trace added lines to source commits and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument("--target", required=True, help="frozen fork parent")
@@ -220,6 +228,7 @@ def main() -> int:
     lines.append("")
 
     def render(title: str, group: list[Hunk], preview: int) -> None:
+        """Print one group of hunks with a preview."""
         lines.append(f"## {title} ({len(group)} hunks)")
         lines.append("")
         by_file: dict[str, list[Hunk]] = {}

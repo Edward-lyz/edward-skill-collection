@@ -12,11 +12,13 @@ from pathlib import Path, PurePosixPath
 
 
 class GitError(RuntimeError):
+    """Raised when a git command fails."""
     pass
 
 
 @dataclass(frozen=True)
 class Duplicate:
+    """A symbol defined more than once in the same scope."""
     path: str
     scope: str
     symbol: str
@@ -25,10 +27,12 @@ class Duplicate:
 
     @property
     def key(self) -> tuple[str, str, str]:
+        """Return the identity used to match waivers."""
         return self.path, self.scope, self.symbol
 
 
 def verify_revision(repo: Path, revision: str) -> None:
+    """Fail if the revision does not resolve to a commit."""
     result = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "--verify", f"{revision}^{{commit}}"],
         check=False,
@@ -41,6 +45,7 @@ def verify_revision(repo: Path, revision: str) -> None:
 
 
 def git_blob(repo: Path, revision: str, path: str) -> str | None:
+    """Return file content at revision, or None if absent."""
     listing = subprocess.run(
         ["git", "-C", str(repo), "ls-tree", "-z", revision, "--", path],
         check=False,
@@ -64,6 +69,7 @@ def git_blob(repo: Path, revision: str, path: str) -> str | None:
 
 
 def changed_python_paths(repo: Path, base: str, final: str) -> list[str]:
+    """List Python files changed between base and final."""
     result = subprocess.run(
         [
             "git",
@@ -84,6 +90,7 @@ def changed_python_paths(repo: Path, base: str, final: str) -> list[str]:
 
 
 def decorator_name(node: ast.AST) -> str:
+    """Return the dotted name of a decorator node."""
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
@@ -98,6 +105,7 @@ def intentional_definition_group(
     symbol: str,
     nodes: list[ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef],
 ) -> bool:
+    """Return True if the definitions form an intended overload or property group."""
     if not all(
         isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) for node in nodes
     ):
@@ -122,6 +130,7 @@ def intentional_definition_group(
 
 
 def is_test_path(path: str) -> bool:
+    """Return True if the path belongs to a test file."""
     parsed = PurePosixPath(path)
     filename = parsed.name
     return (
@@ -133,10 +142,12 @@ def is_test_path(path: str) -> bool:
 
 
 def collect_duplicates(text: str, path: str) -> list[Duplicate]:
+    """Find symbols defined more than once in each scope of the source text."""
     tree = ast.parse(text)
     duplicates: list[Duplicate] = []
 
     def visit_scope(statements: list[ast.stmt], scope: str) -> None:
+        """Record definitions in one scope and recurse into class bodies."""
         definitions: dict[
             str, list[ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef]
         ] = {}
@@ -171,6 +182,7 @@ def collect_duplicates(text: str, path: str) -> list[Duplicate]:
 
 
 def resolve_nodes(tree: ast.Module, symbol: str) -> list[ast.AST]:
+    """Return the definition nodes matching a dotted symbol."""
     parts = [part for part in symbol.split(".") if part]
     statements = tree.body
     nodes: list[ast.AST] = []
@@ -195,6 +207,7 @@ def resolve_nodes(tree: ast.Module, symbol: str) -> list[ast.AST]:
 
 
 def anchor_exists(repo: Path, final: str, anchor: str) -> bool:
+    """Return True if the waiver anchor still exists at final."""
     path, separator, symbol = anchor.partition(":")
     if not separator or not path or not symbol:
         return False
@@ -211,6 +224,7 @@ def anchor_exists(repo: Path, final: str, anchor: str) -> bool:
 def read_waivers(
     repo: Path, final: str, path: Path | None
 ) -> set[tuple[str, str, str]]:
+    """Load waivers and report the ones whose anchor is stale."""
     waivers: set[tuple[str, str, str]] = set()
     if path is None or not path.exists():
         return waivers
@@ -246,6 +260,7 @@ def render_report(
     paths: list[str],
     ignored: list[str],
 ) -> str:
+    """Render duplicates and waiver status as Markdown."""
     unwaived = [
         duplicate
         for duplicate in duplicates
@@ -293,6 +308,7 @@ def render_report(
 
 
 def read_paths(path: Path) -> tuple[list[str], list[str]]:
+    """Read the path list file into (paths, ignored)."""
     requested = sorted(
         {line.strip() for line in path.read_text().splitlines() if line.strip()}
     )
@@ -302,6 +318,7 @@ def read_paths(path: Path) -> tuple[list[str], list[str]]:
 
 
 def main() -> int:
+    """Parse arguments, scan changed files and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--base", required=True)

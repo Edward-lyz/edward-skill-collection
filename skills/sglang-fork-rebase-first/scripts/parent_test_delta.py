@@ -27,11 +27,13 @@ TREE_PLACEHOLDER = "{tree}"
 
 
 class GitError(RuntimeError):
+    """Raised when a git command fails."""
     pass
 
 
 @dataclass
 class Run:
+    """Test results of one revision."""
     role: str
     revision: str
     tree: Path
@@ -42,6 +44,7 @@ class Run:
 
 
 def git(repo: Path, *args: str) -> str:
+    """Run git in repo and return stdout."""
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         check=False,
@@ -55,6 +58,7 @@ def git(repo: Path, *args: str) -> str:
 
 
 def resolve(repo: Path, revision: str) -> str:
+    """Resolve a revision to a full commit SHA."""
     return git(repo, "rev-parse", "--verify", f"{revision}^{{commit}}").strip()
 
 
@@ -75,6 +79,7 @@ def run_command(template: str, tree: Path, log: Path) -> tuple[int, str]:
 
 
 def parse_ids(output: str, pattern: re.Pattern[str]) -> set[str]:
+    """Extract test ids matching pattern from test output."""
     found: set[str] = set()
     for line in output.splitlines():
         match = pattern.match(line.strip())
@@ -84,6 +89,7 @@ def parse_ids(output: str, pattern: re.Pattern[str]) -> set[str]:
 
 
 def classify(final: Run, parents: list[Run]) -> dict[str, list[str]]:
+    """Bucket failing tests by whether they also fail on the parents."""
     parent_failures = set().union(*(p.failures for p in parents)) if parents else set()
     parent_collected: set[str] = set()
     have_collected = all(p.collected is not None for p in parents)
@@ -108,6 +114,7 @@ def classify(final: Run, parents: list[Run]) -> dict[str, list[str]]:
 
 
 def render(final: Run, parents: list[Run], buckets: dict[str, list[str]]) -> str:
+    """Render the test buckets as Markdown."""
     out: list[str] = ["# Parent-relative test delta", ""]
     out.append("| role | revision | exit | failures | collected |")
     out.append("|---|---|---|---|---|")
@@ -147,6 +154,7 @@ def render(final: Run, parents: list[Run], buckets: dict[str, list[str]]) -> str
 
 
 def main() -> int:
+    """Parse arguments, compare test results and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--final", default="HEAD")

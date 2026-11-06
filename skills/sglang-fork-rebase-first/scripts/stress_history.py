@@ -58,6 +58,7 @@ def pick_mode(values: list[str]) -> tuple[str, int]:
 
 
 def read_log_head(job_id: int) -> list[str]:
+    """Return the first lines of a job log."""
     job = run.cli("build", "job", "--job-build-id", str(job_id))
     logs = [lg["url"] for lg in job.get("logs") or [] if lg.get("url")]
     if not logs:
@@ -72,6 +73,7 @@ def read_log_head(job_id: int) -> list[str]:
 
 
 def run_params(stage: dict[str, Any]) -> dict[str, str]:
+    """Return the parameters a stage ran with."""
     params: dict[str, str] = {}
     for job in stage["jobBuildBeans"]:
         name = job["jobName"]
@@ -89,6 +91,7 @@ def run_params(stage: dict[str, Any]) -> dict[str, str]:
 
 
 def executed_runs(module: str, pipeline_id: int, last: int) -> list[dict[str, Any]]:
+    """Return the last executed stress runs of a pipeline."""
     rows = run.cli("build", "history", "--module", module, "--limit", "1500")
     mine = [r for r in rows if r.get("pipelineConfId") == pipeline_id]  # already newest first
     runs: list[dict[str, Any]] = []
@@ -104,11 +107,13 @@ def executed_runs(module: str, pipeline_id: int, last: int) -> list[dict[str, An
 
 
 def summarize(runs: list[dict[str, Any]]) -> dict[str, list[Any]]:
+    """Group run values by parameter."""
     keys = sorted({k for r in runs for k in r} - {"pipelineBuildId", "buildNumber", "status", "user"})
     return {k: list(pick_mode([r[k] for r in runs if k in r])) + [sum(1 for r in runs if k in r)] for k in keys}
 
 
 def main() -> int:
+    """Parse arguments and print stress run history."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--last", type=int, default=10)
     ap.add_argument("--pipeline-id", type=int, default=2353017)

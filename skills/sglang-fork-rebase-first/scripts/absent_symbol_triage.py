@@ -48,6 +48,7 @@ def read_waivers(path: Optional[Path]) -> dict[str, str]:
 
 @dataclass
 class Row:
+    """One missing symbol with the commit that removed it and its triage verdict."""
     origin: str
     path: str
     kind: str
@@ -55,10 +56,12 @@ class Row:
 
     @property
     def leaf(self) -> str:
+        """Return the last dotted component of the symbol."""
         return self.symbol.rsplit(".", 1)[-1]
 
 
 def git(repo: Path, *args: str) -> str:
+    """Run git in repo and return stdout."""
     result = subprocess.run(
         ["git", "-C", str(repo), *args], check=False, capture_output=True, text=True
     )
@@ -112,6 +115,7 @@ def definition_marker(repo: Path, rev: str, path: str, leaf: str) -> Optional[st
 
 
 def main() -> int:
+    """Parse arguments, triage missing symbols and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", required=True, type=Path)
     parser.add_argument(

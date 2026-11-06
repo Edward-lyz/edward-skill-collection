@@ -26,11 +26,13 @@ ROUTE_METHODS = {
 
 
 class GitError(RuntimeError):
+    """Raised when a git command fails."""
     pass
 
 
 @dataclass(frozen=True)
 class Candidate:
+    """An interface change that may break callers."""
     priority: str
     origin: str
     path: str
@@ -41,6 +43,7 @@ class Candidate:
 
 @dataclass
 class Surface:
+    """Public symbols, signatures and routes found in one file."""
     symbols: dict[str, str]
     parameters: dict[str, dict[str, bool]]
     routes: set[tuple[str, str, str]]
@@ -48,6 +51,7 @@ class Surface:
 
 
 def verify_revision(repo: Path, revision: str) -> None:
+    """Fail if the revision does not resolve to a commit."""
     result = subprocess.run(
         ["git", "-C", str(repo), "rev-parse", "--verify", f"{revision}^{{commit}}"],
         check=False,
@@ -60,6 +64,7 @@ def verify_revision(repo: Path, revision: str) -> None:
 
 
 def git_blob(repo: Path, revision: str, path: str) -> str | None:
+    """Return file content at revision, or None if absent."""
     listing = subprocess.run(
         ["git", "-C", str(repo), "ls-tree", "-z", revision, "--", path],
         check=False,
@@ -83,6 +88,7 @@ def git_blob(repo: Path, revision: str, path: str) -> str | None:
 
 
 def dotted_name(node: ast.AST) -> str | None:
+    """Return the dotted name of an attribute chain, or None."""
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Attribute):
@@ -94,6 +100,7 @@ def dotted_name(node: ast.AST) -> str | None:
 def argument_requirements(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> dict[str, bool]:
+    """Return the required positional and keyword arguments of a function."""
     args = node.args
     positional = args.posonlyargs + args.args
     first_default = len(positional) - len(args.defaults)
@@ -117,6 +124,7 @@ def argument_requirements(
 def decorator_routes(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> set[tuple[str, str]]:
+    """Return HTTP routes declared by decorators on a function."""
     routes: set[tuple[str, str]] = set()
     for decorator in node.decorator_list:
         if not isinstance(decorator, ast.Call):
@@ -135,11 +143,13 @@ def decorator_routes(
 
 
 def public_symbol(symbol: str) -> bool:
+    """Return True if no component of the symbol is private."""
     leaf = symbol.rsplit(".", 1)[-1]
     return leaf == "__init__" or not leaf.startswith("_")
 
 
 def parse_surface(text: str, label: str) -> Surface:
+    """Parse source text into its public interface surface."""
     tree = ast.parse(text, filename=label)
     symbols: dict[str, str] = {}
     parameters: dict[str, dict[str, bool]] = {}
@@ -147,7 +157,9 @@ def parse_surface(text: str, label: str) -> Surface:
     call_keywords: set[tuple[str, str, str]] = set()
 
     class DirectCallVisitor(ast.NodeVisitor):
+        """Collect calls made directly in a function body."""
         def visit_Call(self, node: ast.Call) -> None:
+            """Record the callee name and keep walking."""
             callee = dotted_name(node.func)
             if callee is not None:
                 for keyword in node.keywords:
@@ -156,18 +168,23 @@ def parse_surface(text: str, label: str) -> Surface:
             self.generic_visit(node)
 
         def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+            """Skip nested functions."""
             return
 
         def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+            """Skip nested async functions."""
             return
 
         def visit_ClassDef(self, node: ast.ClassDef) -> None:
+            """Skip nested classes."""
             return
 
         def visit_Lambda(self, node: ast.Lambda) -> None:
+            """Skip lambdas."""
             return
 
     def visit(statements: list[ast.stmt], prefix: str = "") -> None:
+        """Walk statements and record public definitions under prefix."""
         nonlocal current_symbol
         for statement in statements:
             if isinstance(statement, ast.ClassDef):
@@ -195,6 +212,7 @@ def parse_surface(text: str, label: str) -> Surface:
 def compare(
     repo: Path, origin: str, reference: str, final: str, path: str
 ) -> list[Candidate]:
+    """Compare base and final surfaces and return breaking candidates."""
     reference_text = git_blob(repo, reference, path)
     if reference_text is None:
         return []
@@ -305,6 +323,7 @@ def compare(
 
 
 def read_paths(path: Path) -> tuple[list[str], list[str]]:
+    """Read the path list file into (paths, ignored)."""
     requested = sorted(
         {line.strip() for line in path.read_text().splitlines() if line.strip()}
     )
@@ -314,6 +333,7 @@ def read_paths(path: Path) -> tuple[list[str], list[str]]:
 
 
 def render(candidates: list[Candidate], paths: list[str], ignored: list[str]) -> str:
+    """Render candidates as Markdown."""
     priority_counts = {
         priority: sum(candidate.priority == priority for candidate in candidates)
         for priority in ("HIGH", "MEDIUM", "LOW")
@@ -371,6 +391,7 @@ def render(candidates: list[Candidate], paths: list[str], ignored: list[str]) ->
 
 
 def main() -> int:
+    """Parse arguments, compare interfaces and print the report."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, default=Path.cwd())
     parser.add_argument("--source", required=True)
